@@ -1,0 +1,48 @@
+name: Build Classe APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le projet
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Préparer les fichiers web
+        run: npm run prepare:web
+
+      - name: Créer le projet Android Capacitor
+        run: npx cap add android
+
+      - name: Synchroniser Android
+        run: npx cap sync android
+
+      - name: Construire l'APK debug
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Publier l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Classe-Android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk

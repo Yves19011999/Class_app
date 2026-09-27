@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Classe — Gestion de classe",
+  "short_name": "Classe",
+  "description": "Carnet de bord pédagogique hors ligne : élèves, présences, notes pondérées, planning, devoirs, statistiques et rapports.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#18252B",
+  "theme_color": "#1E2A2F",
+  "lang": "fr",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ajouter un élève", "short_name": "Élève", "url": "./index.html#students", "icons": [{"src":"icon-192.png","sizes":"192x192"}] },
+    { "name": "Faire l’appel", "short_name": "Appel", "url": "./index.html#today", "icons": [{"src":"icon-192.png","sizes":"192x192"}] },
+    { "name": "Ajouter une note", "short_name": "Note", "url": "./index.html#grades", "icons": [{"src":"icon-192.png","sizes":"192x192"}] }
+  ]
+}
