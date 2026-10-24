@@ -166,22 +166,8 @@ async function migrateLegacyAttendance(){
 async function seedIfNeeded(){
   const seeded=await dbGet('settings','seeded');
   if(seeded?.value) return;
-  const existing=await dbGetAll('classes');
-  if(existing.length){ await dbPut('settings',{key:'seeded',value:true}); return; }
-  const c1={id:uid(),name:'2nde',subject:'Physique-Chimie',color:'#B85C3E'};
-  const c2={id:uid(),name:'1ère L',subject:'Physique-Chimie',color:'#4A7C5D'};
-  await dbPut('classes',c1); await dbPut('classes',c2);
-  for(const n of ['Aïcha Mahamat','Ibrahim Ousmane','Fatimé Adam','Djimet Nodjita','Halimé Youssouf','Mbaïnodji Rimtebaye','Achta Idriss','Naïmata Sougui']) await dbPut('students',{id:uid(),classId:c1.id,name:n,phone:'',note:''});
-  for(const n of ['Kaltouma Brahim','Ndilbé Success','Hawa Mahamat','Djibrine Ali','Rosine Ngarmbatinan']) await dbPut('students',{id:uid(),classId:c2.id,name:n,phone:'',note:''});
-  const demo=[
-    {day:1,start:'07:30',end:'09:00',classId:c1.id,topic:'Mécanique — forces'},
-    {day:1,start:'10:30',end:'12:00',classId:c2.id,topic:'Électricité — circuits'},
-    {day:2,start:'08:00',end:'09:30',classId:c1.id,topic:'TP mesures'},
-    {day:3,start:'07:30',end:'09:00',classId:c2.id,topic:'Chimie des solutions'},
-    {day:4,start:'10:30',end:'12:00',classId:c1.id,topic:'Optique'},
-    {day:5,start:'08:00',end:'09:30',classId:c2.id,topic:'Thermodynamique'}
-  ];
-  for(const s of demo) await dbPut('schedule',{id:uid(),...s});
+  // Les nouvelles installations démarrent volontairement sans données d’exemple.
+  // L’utilisateur crée ses classes et ajoute ses données depuis l’écran Élèves.
   await dbPut('settings',{key:'seeded',value:true});
 }
 
@@ -501,7 +487,6 @@ function openSettings(){
     <div class="settings-section"><div class="settings-title">Sauvegarde</div><p class="muted">Garde une copie complète avant de changer de téléphone.</p><div class="settings-actions"><button class="btn btn-ghost" id="exportBtn">Exporter JSON</button><button class="btn btn-ghost" id="importBtn">Restaurer JSON</button></div></div>
     <div class="settings-section"><div class="settings-title">Import / rapports</div><div class="settings-actions"><button class="btn btn-ghost" id="csvStudentsBtn">Importer élèves CSV</button><button class="btn btn-ghost" id="reportBtn">Rapport / PDF</button></div></div>
     <div class="settings-section"><div class="settings-title">État de l’application</div>${appHealth()}<p class="muted" style="margin-top:9px">Les données scolaires restent dans le stockage local de ce téléphone.</p></div>
-    <div class="settings-section"><div class="settings-title">Données de démonstration</div><p class="muted">Recharge un jeu de données d’exemple pour tester toutes les fonctions.</p><button class="btn btn-ghost btn-block" id="demoResetBtn">Réinitialiser avec la démo</button></div>
     <div class="settings-section danger-zone"><div class="settings-title">Zone sensible</div><button class="btn btn-danger-outline btn-block" id="wipeBtn">Tout effacer</button></div>`);
   updateInstallButtons();
   document.getElementById('themeLight').onclick=()=>{haptic();document.documentElement.classList.remove('dark');localStorage.setItem('classe_theme','light');closeSheet();renderAll();};
@@ -511,7 +496,6 @@ function openSettings(){
   document.getElementById('exportBtn').onclick=exportData;document.getElementById('importBtn').onclick=openImportPicker;
   document.getElementById('csvStudentsBtn').onclick=()=>document.getElementById('studentCsvInput').click();document.getElementById('reportBtn').onclick=openReportChooser;
   document.getElementById('notifBtn').onclick=enableNotifications;
-  document.getElementById('demoResetBtn').onclick=async()=>{if(!confirm('Remplacer les données actuelles par la démo ?'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:false});await seedIfNeeded();await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Démo réinitialisée');};
   document.getElementById('wipeBtn').onclick=async()=>{if(!confirm('Supprimer TOUTES les données locales ? Fais une sauvegarde avant.'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:true});await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Toutes les données ont été effacées');};
 }
 
