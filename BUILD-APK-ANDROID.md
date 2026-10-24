@@ -18,9 +18,10 @@ Cette version contient un projet Android Capacitor et un workflow GitHub Actions
 - Android peut demander d'autoriser l'installation d'applications provenant du navigateur/fichiers.
 - Pour une publication Play Store, il faudra ensuite générer une version signée avec une clé de signature et préparer la fiche Play Store.
 - L'APK debug est destiné à l'installation et aux tests. Il ne faut pas le considérer comme une version Play Store finale.
+- Le build déclare seulement `CAMERA` (photo d’élève) et `POST_NOTIFICATIONS` (rappels de séance). Aucun accès général au stockage Android n’est demandé : les données restent dans IndexedDB et les fichiers sont choisis via le sélecteur système.
 
 ## Identité Android
 
 - Nom : Classe
 - Application ID : `com.classe.gestion`
-- Version : 4.0.0
+- Version : 4.1.0

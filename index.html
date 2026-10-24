@@ -661,7 +661,47 @@
   .btn-danger-outline:active{background:#F5DFDC;}
   @media(max-width:390px){.metric-grid{grid-template-columns:repeat(2,1fr)}.quick-grid{grid-template-columns:repeat(2,1fr)}.settings-actions{grid-template-columns:1fr;}}
 
-  ::selection{background:var(--terre); color:#fff;}
+	  ::selection{background:var(--terre); color:#fff;}
+
+	  /* ---------- v4.1 modern mobile refresh ---------- */
+	  :root{
+	    --ardoise:#142B45;
+	    --ardoise-2:#1B3A5B;
+	    --ardoise-3:#285277;
+	    --terre:#E56B4F;
+	    --terre-fonce:#C9513A;
+	    --emeraude:#2F8F70;
+	    --emeraude-fonce:#21684F;
+	    --craie:#F4F7FB;
+	    --craie-2:#E8EEF5;
+	    --papier:#FFFFFF;
+	    --encre:#172334;
+	    --encre-douce:#65758A;
+	    --ligne:#D8E2ED;
+	    --shadow:0 8px 24px rgba(20,43,69,.07);
+	  }
+	body{background:var(--craie);}
+	#app{background:var(--craie);}
+	.topbar{background:linear-gradient(135deg,var(--ardoise),var(--ardoise-2));box-shadow:0 4px 18px rgba(20,43,69,.16);}
+	.topbar h1{font-weight:750;letter-spacing:-.035em;}
+	.topbar .eyebrow{color:#B9D0E5;font-weight:650;}
+	.card,.quick-btn,.metric,.insight-card,.calendar-day,.feature-btn,.settings-section{box-shadow:var(--shadow);}
+	.card{border-color:rgba(216,226,237,.9);}
+	.hero{background:linear-gradient(135deg,#142B45 0%,#1D4B70 100%);box-shadow:0 12px 30px rgba(20,43,69,.18);}
+	.hero::after{background:radial-gradient(circle,rgba(229,107,79,.42),transparent 70%);}
+	.quick-btn{border-color:var(--ligne);min-height:86px;}
+	.quick-btn svg{stroke:var(--ardoise-2);}
+	.quick-btn span{color:var(--encre);}
+	.btn-primary,.fab{background:var(--terre);box-shadow:0 6px 14px rgba(229,107,79,.22);}
+	.btn-primary:active{background:var(--terre-fonce);}
+	.tabbar{background:var(--ardoise);}
+	.tab.active,.tab.active svg{color:#FF9A82;stroke:#FF9A82;}
+	.tab{color:#A9BDD0;}
+	.field input:focus,.field select:focus,.field textarea:focus{outline-color:var(--terre);border-color:var(--terre);}
+	.sheet{box-shadow:0 -10px 40px rgba(20,43,69,.16);}
+	.install-banner{background:linear-gradient(135deg,var(--emeraude),#21684F);box-shadow:0 10px 26px rgba(33,104,79,.18);}
+	.suggestion{background:#EAF6F1;border-color:#CBE7DA;}
+	@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 
   /* ---------- V3 additions ---------- */
   .topbar-actions{display:flex;gap:7px;position:absolute;right:16px;top:calc(env(safe-area-inset-top) + 14px);}
