@@ -1,4 +1,6 @@
 node_modules/
 www/
 android/
+artifact/
+apk-download/
 .DS_Store
