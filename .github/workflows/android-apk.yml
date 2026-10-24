@@ -40,6 +40,26 @@ jobs:
       - name: Synchroniser Android
         run: npx cap sync android
 
+      - name: Préparer la signature Android stable
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            mkdir -p android/keystore
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/classe-upload.jks
+            echo "ANDROID_KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore/classe-upload.jks" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          else
+            echo "Aucune clé stable configurée : build debug temporaire."
+          fi
+          npm run android:signing
+          npm run android:version
+
       - name: Activer les permissions Android nécessaires
         run: npm run android:permissions
 

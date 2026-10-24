@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.5.0';
 let db = null;
 
 const STORES = {
@@ -476,6 +476,11 @@ function exportGradesCSV(classId){
   const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`notes-${escapeFileName(classLabel(classId))}-${todayISO()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('CSV exporté');
 }
 function escapeFileName(s){return String(s||'classe').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'').toLowerCase()||'classe';}
+async function prepareSafeUpdate(){
+  await exportData();
+  try{const registration=await navigator.serviceWorker?.getRegistration();await registration?.update();}catch(e){console.warn('Mise à jour PWA:',e);}
+  showToast('Sauvegarde téléchargée avant la mise à jour');
+}
 function openSettings(){
   const pin=!!localStorage.getItem('classe_pin_hash'), notif=localStorage.getItem('classe_notifications')==='1', dark=document.documentElement.classList.contains('dark');
   openSheet(`<div class="sheet-header"><div><h3>Réglages</h3><p class="sheet-kicker">${getAppName()} · v${APP_VERSION}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
@@ -485,6 +490,7 @@ function openSettings(){
     <div class="settings-section"><div class="settings-title">Sécurité</div><p class="muted">Protège les données locales avec un PIN sur cet appareil.</p><div class="settings-actions"><button class="btn btn-ghost" id="pinBtn">${pin?'Changer le PIN':'Créer un PIN'}</button>${pin?'<button class="btn btn-ghost" id="removePinBtn">Désactiver</button>':''}</div></div>
     <div class="settings-section"><div class="settings-title">Notifications</div><p class="muted">${window.ClassNativeNotifications?.available?'Rappels Android planifiés même lorsque Classe est fermée.':'Rappels lorsque l’application est ouverte.'}</p><button class="btn btn-ghost btn-block" id="notifBtn">${notif?'✓ Notifications 24/24 activées':'Activer les notifications 24/24'}</button></div>
     <div class="settings-section"><div class="settings-title">Sauvegarde</div><p class="muted">Garde une copie complète avant de changer de téléphone.</p><div class="settings-actions"><button class="btn btn-ghost" id="exportBtn">Exporter JSON</button><button class="btn btn-ghost" id="importBtn">Restaurer JSON</button></div></div>
+    <div class="settings-section update-card"><div class="settings-title">Mise à jour sécurisée</div><p class="muted">Version ${APP_VERSION}. Exporte automatiquement tes données avant de vérifier la nouvelle version.</p><button class="btn btn-primary btn-block" id="safeUpdateBtn">Sauvegarder et vérifier la mise à jour</button></div>
     <div class="settings-section"><div class="settings-title">Import / rapports</div><div class="settings-actions"><button class="btn btn-ghost" id="csvStudentsBtn">Importer élèves CSV</button><button class="btn btn-ghost" id="reportBtn">Rapport / PDF</button></div></div>
     <div class="settings-section"><div class="settings-title">État de l’application</div>${appHealth()}<p class="muted" style="margin-top:9px">Les données scolaires restent dans le stockage local de ce téléphone.</p></div>
     <div class="settings-section danger-zone"><div class="settings-title">Zone sensible</div><button class="btn btn-danger-outline btn-block" id="wipeBtn">Tout effacer</button></div>`);
@@ -494,6 +500,7 @@ function openSettings(){
   document.getElementById('shareAppBtn').onclick=()=>{haptic();shareApp();};
   document.getElementById('pinBtn').onclick=setupPin;document.getElementById('removePinBtn')?.addEventListener('click',removePin);
   document.getElementById('exportBtn').onclick=exportData;document.getElementById('importBtn').onclick=openImportPicker;
+  document.getElementById('safeUpdateBtn').onclick=prepareSafeUpdate;
   document.getElementById('csvStudentsBtn').onclick=()=>document.getElementById('studentCsvInput').click();document.getElementById('reportBtn').onclick=openReportChooser;
   document.getElementById('notifBtn').onclick=enableNotifications;
   document.getElementById('wipeBtn').onclick=async()=>{if(!confirm('Supprimer TOUTES les données locales ? Fais une sauvegarde avant.'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:true});await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Toutes les données ont été effacées');};

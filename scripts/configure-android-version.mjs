@@ -1,0 +1,10 @@
+import { readFile, writeFile } from 'node:fs/promises';
+const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+const [major = 1, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
+const versionCode = major * 10000 + minor * 100 + patch;
+const path = 'android/app/build.gradle';
+let gradle = await readFile(path, 'utf8');
+gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`);
+gradle = gradle.replace(/versionName\s+"[^"]+"/, `versionName "${pkg.version}"`);
+await writeFile(path, gradle);
+console.log(`Version Android configurée : ${pkg.version} (${versionCode})`);

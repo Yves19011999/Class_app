@@ -20,9 +20,10 @@ Cette version contient un projet Android Capacitor et un workflow GitHub Actions
 - L'APK debug est destiné à l'installation et aux tests. Il ne faut pas le considérer comme une version Play Store finale.
 - Le build déclare `CAMERA` (photo d’élève) et `POST_NOTIFICATIONS` (rappels de séance). Les rappels sont désormais planifiés nativement sur Android pour fonctionner même lorsque l’application est fermée. Aucun accès général au stockage Android n’est demandé : les données restent dans IndexedDB et les fichiers sont choisis via le sélecteur système.
 - Les nouvelles installations démarrent sans données préchargées : crée tes classes depuis le bouton visible dans l’écran Élèves.
+- Pour préserver les données, utilise « Réglages → Sauvegarder et vérifier la mise à jour » avant une mise à jour PWA. Les APK utilisent une signature stable et un versionCode croissant lorsque les secrets de signature GitHub sont configurés.
 
 ## Identité Android
 
 - Nom : Classe
 - Application ID : `com.classe.gestion`
-- Version : 4.4.0
+- Version : 4.5.0

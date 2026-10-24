@@ -1,5 +1,5 @@
-const CACHE_NAME = 'classe-cache-v4-0';
-const CORE_ASSETS = ['./','./index.html','./app.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CACHE_NAME = 'classe-cache-v4-5';
+const CORE_ASSETS = ['./','./index.html','./app.js','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
