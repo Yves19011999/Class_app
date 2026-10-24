@@ -406,9 +406,9 @@ function openSlotForm(existing,presetDay){
     const candidate={id:edit?existing.id:uid(),day,start,end,classId,topic};
     const conflict=state.schedule.find(s=>overlaps(candidate,s));
     if(conflict&&!confirm(`Chevauchement détecté avec ${conflict.start}–${conflict.end} (${classLabel(conflict.classId)}). Enregistrer quand même ?`)) return;
-    await dbPut('schedule',candidate);await loadAll();state.scheduleDayIndex=day;closeSheet();renderAll();showToast(edit?'Séance modifiée':'Séance ajoutée');
+    await dbPut('schedule',candidate);await loadAll();await syncNativeNotifications();state.scheduleDayIndex=day;closeSheet();renderAll();showToast(edit?'Séance modifiée':'Séance ajoutée');
   };
-  if(edit) document.getElementById('deleteSlotBtn').onclick=async()=>{if(!confirm('Supprimer cette séance ? Les appels déjà enregistrés resteront conservés.'))return;await dbDelete('schedule',existing.id);await loadAll();closeSheet();renderAll();showToast('Séance supprimée');};
+  if(edit) document.getElementById('deleteSlotBtn').onclick=async()=>{if(!confirm('Supprimer cette séance ? Les appels déjà enregistrés resteront conservés.'))return;await dbDelete('schedule',existing.id);await loadAll();await syncNativeNotifications();closeSheet();renderAll();showToast('Séance supprimée');};
 }
 
 function renderHomework(){
@@ -497,7 +497,7 @@ function openSettings(){
     <div class="settings-section install-card"><div class="install-badge">📱 Application</div><div class="settings-title">Installer sur ce téléphone</div><p class="muted" id="installHint">Installe Classe pour l'ouvrir comme une vraie application.</p><button class="btn btn-primary btn-block" id="installAppBtn" type="button" onclick="installApp()">📲 Installer Classe</button><button class="btn btn-ghost btn-block" id="shareAppBtn" type="button">↗ Partager l’application</button></div>
     <div class="settings-section"><div class="settings-title">Apparence</div><div class="settings-actions"><button class="btn ${!dark?'btn-primary':'btn-ghost'}" id="themeLight">☀️ Clair</button><button class="btn ${dark?'btn-primary':'btn-ghost'}" id="themeDark">🌙 Sombre</button></div></div>
     <div class="settings-section"><div class="settings-title">Sécurité</div><p class="muted">Protège les données locales avec un PIN sur cet appareil.</p><div class="settings-actions"><button class="btn btn-ghost" id="pinBtn">${pin?'Changer le PIN':'Créer un PIN'}</button>${pin?'<button class="btn btn-ghost" id="removePinBtn">Désactiver</button>':''}</div></div>
-    <div class="settings-section"><div class="settings-title">Notifications</div><p class="muted">Rappels des prochaines séances lorsque l’application est ouverte.</p><button class="btn btn-ghost btn-block" id="notifBtn">${notif?'✓ Notifications activées':'Activer les notifications'}</button></div>
+    <div class="settings-section"><div class="settings-title">Notifications</div><p class="muted">${window.ClassNativeNotifications?.available?'Rappels Android planifiés même lorsque Classe est fermée.':'Rappels lorsque l’application est ouverte.'}</p><button class="btn btn-ghost btn-block" id="notifBtn">${notif?'✓ Notifications 24/24 activées':'Activer les notifications 24/24'}</button></div>
     <div class="settings-section"><div class="settings-title">Sauvegarde</div><p class="muted">Garde une copie complète avant de changer de téléphone.</p><div class="settings-actions"><button class="btn btn-ghost" id="exportBtn">Exporter JSON</button><button class="btn btn-ghost" id="importBtn">Restaurer JSON</button></div></div>
     <div class="settings-section"><div class="settings-title">Import / rapports</div><div class="settings-actions"><button class="btn btn-ghost" id="csvStudentsBtn">Importer élèves CSV</button><button class="btn btn-ghost" id="reportBtn">Rapport / PDF</button></div></div>
     <div class="settings-section"><div class="settings-title">État de l’application</div>${appHealth()}<p class="muted" style="margin-top:9px">Les données scolaires restent dans le stockage local de ce téléphone.</p></div>
@@ -510,9 +510,9 @@ function openSettings(){
   document.getElementById('pinBtn').onclick=setupPin;document.getElementById('removePinBtn')?.addEventListener('click',removePin);
   document.getElementById('exportBtn').onclick=exportData;document.getElementById('importBtn').onclick=openImportPicker;
   document.getElementById('csvStudentsBtn').onclick=()=>document.getElementById('studentCsvInput').click();document.getElementById('reportBtn').onclick=openReportChooser;
-  document.getElementById('notifBtn').onclick=async()=>{if(!('Notification'in window)){showToast('Notifications non disponibles sur cet appareil','info');return;}const p=await Notification.requestPermission();if(p==='granted'){localStorage.setItem('classe_notifications','1');showToast('Notifications activées');}else showToast('Permission refusée','info');};
-  document.getElementById('demoResetBtn').onclick=async()=>{if(!confirm('Remplacer les données actuelles par la démo ?'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:false});await seedIfNeeded();await loadAll();renderAll();closeSheet();showToast('Démo réinitialisée');};
-  document.getElementById('wipeBtn').onclick=async()=>{if(!confirm('Supprimer TOUTES les données locales ? Fais une sauvegarde avant.'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:true});await loadAll();renderAll();closeSheet();showToast('Toutes les données ont été effacées');};
+  document.getElementById('notifBtn').onclick=enableNotifications;
+  document.getElementById('demoResetBtn').onclick=async()=>{if(!confirm('Remplacer les données actuelles par la démo ?'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:false});await seedIfNeeded();await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Démo réinitialisée');};
+  document.getElementById('wipeBtn').onclick=async()=>{if(!confirm('Supprimer TOUTES les données locales ? Fais une sauvegarde avant.'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:true});await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Toutes les données ont été effacées');};
 }
 
 /* =========================================================
@@ -737,7 +737,50 @@ function updateFab(){
 }
 function applyTheme(){if(localStorage.getItem('classe_theme')==='dark')document.documentElement.classList.add('dark');}
 function registerServiceWorker(){if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));}
-function startNotificationLoop(){setInterval(()=>{if(localStorage.getItem('classe_notifications')!=='1'||!('Notification'in window)||Notification.permission!=='granted')return;const n=nextSlot();if(!n)return;const now=new Date(),[h,m]=n.start.split(':').map(Number),target=new Date(now);target.setHours(h,m,0,0);const diff=target-now;if(diff>0&&diff<=31*60*1000){const key=`notif_${todayISO()}_${n.id}`;if(!localStorage.getItem(key)){new Notification(`Cours dans ${Math.ceil(diff/60000)} min`,{body:`${classLabel(n.classId)} · ${n.topic||'Séance'} · ${n.start}–${n.end}`});localStorage.setItem(key,'1');}}},60000);}
+async function enableNotifications(){
+  try{
+    if(window.ClassNativeNotifications?.available){
+      const permission=await window.ClassNativeNotifications.requestPermission();
+      if(permission?.display!=='granted'){showToast('Permission de notification refusée dans Android','info');return;}
+      localStorage.setItem('classe_notifications','1');
+      await syncNativeNotifications();
+      showToast('Notifications 24/24 activées');
+      return;
+    }
+    if(!('Notification'in window)){showToast('Notifications non disponibles sur cet appareil','info');return;}
+    const p=await Notification.requestPermission();
+    if(p==='granted'){localStorage.setItem('classe_notifications','1');showToast('Notifications activées lorsque l’application est ouverte');}
+    else showToast('Permission refusée','info');
+  }catch(e){console.error('Notification permission:',e);showToast('Impossible d’activer les notifications','info');}
+}
+async function syncNativeNotifications(){
+  const bridge=window.ClassNativeNotifications;
+  if(!bridge?.available||localStorage.getItem('classe_notifications')!=='1')return;
+  const oldIds=JSON.parse(localStorage.getItem('classe_native_notification_ids')||'[]');
+  if(oldIds.length) await bridge.cancel(oldIds.map(Number)).catch(e=>console.warn('Cancel notifications:',e));
+  const now=new Date(), notifications=[], start=new Date(now); start.setHours(0,0,0,0);
+  for(let offset=0;offset<60;offset++){
+    const date=new Date(start); date.setDate(start.getDate()+offset);
+    const dateIso=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    state.schedule.filter(slot=>slot.day===date.getDay()).forEach(slot=>{
+      const [hours,minutes]=String(slot.start||'').split(':').map(Number);
+      if(Number.isNaN(hours)||Number.isNaN(minutes))return;
+      const at=new Date(date); at.setHours(hours,minutes,0,0);
+      if(at<=new Date(Date.now()+30000))return;
+      const id=700000+notifications.length+offset*1000;
+      notifications.push({id,title:`Cours · ${classLabel(slot.classId)}`,body:`${slot.topic||'Séance'} · ${slot.start}–${slot.end}`,schedule:{at,allowWhileIdle:true},channelId:'classe-cours',extra:{classId:slot.classId,scheduleId:slot.id,date:dateIso}});
+    });
+  }
+  if(notifications.length) await bridge.schedule(notifications);
+  localStorage.setItem('classe_native_notification_ids',JSON.stringify(notifications.map(n=>n.id)));
+}
+function startNotificationLoop(){
+  if(window.ClassNativeNotifications?.available){
+    if(localStorage.getItem('classe_notifications')==='1')syncNativeNotifications().catch(e=>console.warn('Native notifications:',e));
+    return;
+  }
+  setInterval(()=>{if(localStorage.getItem('classe_notifications')!=='1'||!('Notification'in window)||Notification.permission!=='granted')return;const n=nextSlot();if(!n)return;const now=new Date(),[h,m]=n.start.split(':').map(Number),target=new Date(now);target.setHours(h,m,0,0);const diff=target-now;if(diff>0&&diff<=31*60*1000){const key=`notif_${todayISO()}_${n.id}`;if(!localStorage.getItem(key)){new Notification(`Cours dans ${Math.ceil(diff/60000)} min`,{body:`${classLabel(n.classId)} · ${n.topic||'Séance'} · ${n.start}–${n.end}`});localStorage.setItem(key,'1');}}},60000);
+}
 
 applyTheme();
 if(document.getElementById('printRoot')===null){const pr=document.createElement('div');pr.id='printRoot';document.body.appendChild(pr);}
