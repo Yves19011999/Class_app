@@ -1,4 +1,4 @@
-# Classe — UltraReview v4.2
+# Classe — UltraReview v4.3
 
 **Classe** est un carnet de bord pédagogique mobile, offline-first, installable comme PWA et prêt à être empaqueté en application Android.
 
@@ -23,6 +23,7 @@
 - 🔔 Notifications locales Android planifiées 24/24, même lorsque l’app est fermée
 - ⏰ Deux rappels par cours : 2 heures et 30 minutes avant le début
 - 📄 Aperçu du planning dans l’application et export PDF avec en-tête établissement/année/discipline/enseignant/niveau
+- ➕ Bouton « Créer une classe » toujours visible dans l’écran Élèves
 - 📲 Installation PWA depuis l’application
 - ↗ Partage de l’application
 - 📴 Fonctionnement hors connexion
@@ -48,4 +49,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.2.0
+4.3.0
