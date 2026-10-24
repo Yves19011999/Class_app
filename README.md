@@ -21,6 +21,8 @@
 - 🌙 Mode clair/sombre
 - 🔐 Verrouillage PIN local
 - 🔔 Notifications locales Android planifiées 24/24, même lorsque l’app est fermée
+- ⏰ Deux rappels par cours : 2 heures et 30 minutes avant le début
+- 📄 Aperçu du planning dans l’application et export PDF avec en-tête établissement/année/discipline/enseignant/niveau
 - 📲 Installation PWA depuis l’application
 - ↗ Partage de l’application
 - 📴 Fonctionnement hors connexion

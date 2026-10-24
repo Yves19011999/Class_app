@@ -664,9 +664,31 @@ function openSessionDetail(scheduleId){
   document.getElementById('sessionCallBtn').onclick=()=>openAttendanceSheet(slot.classId,slot.id);document.getElementById('sessionEditBtn').onclick=()=>openSlotForm(slot);
   document.getElementById('saveJournalBtn').onclick=async()=>{const s=await getOrCreateSession(todayISO(),slot.classId,slot.id);s.journal={objectives:document.getElementById('jObjectives').value.trim(),activities:document.getElementById('jActivities').value.trim(),material:document.getElementById('jMaterial').value.trim(),notes:document.getElementById('jNotes').value.trim()};await dbPut('sessions',s);await loadAll();closeSheet();showToast('Journal de séance enregistré');};
 }
+function scheduleReportRows(){
+  return DAYS_ORDER.flatMap(day=>state.schedule.filter(s=>s.day===day).sort((a,b)=>a.start.localeCompare(b.start)).map(s=>({day:DAYS_FR[day][0].toUpperCase()+DAYS_FR[day].slice(1),start:s.start,end:s.end,className:classLabel(s.classId),subject:getClass(s.classId)?.subject||'',topic:s.topic||'Séance'})));
+}
+function scheduleReportMeta(){return {school:getSetting('report_school',''),year:getSetting('report_year','2026–2027'),teacher:getSetting('report_teacher',''),subject:getSetting('report_subject',''),level:getSetting('report_level','')}}
+function reportRowsPreview(rows){return rows.map(r=>`<tr><td>${escapeHtml(r.day)}</td><td>${escapeHtml(r.start)}</td><td>${escapeHtml(r.end)}</td><td>${escapeHtml(r.className)}</td><td>${escapeHtml(r.topic)}</td></tr>`).join('')||'<tr><td colspan="5">Aucune séance programmée.</td></tr>';}
+async function openScheduleReport(){
+  const meta=scheduleReportMeta(),rows=scheduleReportRows();
+  openSheet(`<div class="sheet-header"><div><h3>Emploi du temps PDF</h3><p class="sheet-kicker">Consultation et téléchargement du planning à venir</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
+    <p class="muted">Ces informations apparaîtront dans l’en-tête centré et en gras du PDF.</p>
+    <div class="field"><label>Établissement</label><input id="reportSchool" value="${escapeHtml(meta.school)}" placeholder="Nom de l’établissement"></div>
+    <div class="field-row"><div class="field"><label>Année scolaire</label><input id="reportYear" value="${escapeHtml(meta.year)}" placeholder="2026–2027"></div><div class="field"><label>Niveau</label><input id="reportLevel" value="${escapeHtml(meta.level)}" placeholder="Ex. 2nde"></div></div>
+    <div class="field-row"><div class="field"><label>Discipline</label><input id="reportSubject" value="${escapeHtml(meta.subject)}" placeholder="Ex. Physique-Chimie"></div><div class="field"><label>Chargé(e) de cours</label><input id="reportTeacher" value="${escapeHtml(meta.teacher)}" placeholder="Nom du professeur"></div></div>
+    <h2 class="section-title">Aperçu du planning</h2><div class="schedule-preview"><table><thead><tr><th>Jour</th><th>Début</th><th>Fin</th><th>Classe</th><th>Cours</th></tr></thead><tbody>${reportRowsPreview(rows)}</tbody></table></div>
+    <button class="btn btn-primary btn-block" id="downloadSchedulePdf">Télécharger le planning PDF</button>`);
+  document.getElementById('downloadSchedulePdf').onclick=async()=>{
+    const next={school:document.getElementById('reportSchool').value.trim(),year:document.getElementById('reportYear').value.trim(),level:document.getElementById('reportLevel').value.trim(),subject:document.getElementById('reportSubject').value.trim(),teacher:document.getElementById('reportTeacher').value.trim()};
+    await Promise.all(Object.entries(next).map(([key,value])=>saveSetting(`report_${key}`,value)));
+    if(!window.ClassSchedulePdf){showToast('Générateur PDF indisponible','info');return;}
+    window.ClassSchedulePdf.generate({meta:next,rows,fileName:`emploi-du-temps-${todayISO()}.pdf`});
+    showToast('Planning PDF téléchargé');
+  };
+}
 function renderSchedule(){
   const el=document.getElementById('view-schedule'),day=state.scheduleDayIndex;
-  const tabs=`<div class="calendar-head"><div class="calendar-mode"><button class="${state.scheduleView==='week'?'active':''}" id="modeWeek">Semaine</button><button class="${state.scheduleView==='month'?'active':''}" id="modeMonth">Mois</button></div><button class="btn btn-sm btn-ghost" id="scheduleAdd">+ Séance</button></div>`;
+  const tabs=`<div class="calendar-head"><div class="calendar-mode"><button class="${state.scheduleView==='week'?'active':''}" id="modeWeek">Semaine</button><button class="${state.scheduleView==='month'?'active':''}" id="modeMonth">Mois</button></div><div class="calendar-actions"><button class="btn btn-sm btn-ghost" id="schedulePdfBtn">PDF</button><button class="btn btn-sm btn-ghost" id="scheduleAdd">+ Séance</button></div></div>`;
   if(state.scheduleView==='month'){
     const y=state.calendarMonth.getFullYear(),m=state.calendarMonth.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7,totalCells=Math.ceil((start+last.getDate())/7)*7;
     let cells='';for(let i=0;i<totalCells;i++){const n=i-start+1,d=new Date(y,m,n),inMonth=n>=1&&n<=last.getDate(),iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,hasSlot=state.schedule.some(s=>inMonth&&s.day===d.getDay()),hasHw=state.homework.some(h=>h.dueDate===iso),hasGrade=state.grades.some(g=>g.date===iso);cells+=`<button class="calendar-day ${inMonth?'':'muted'} ${iso===todayISO()?'today':''}" data-cal-date="${iso}"><strong>${inMonth?n:''}</strong><div class="calendar-dots">${hasSlot?'<i class="calendar-dot"></i>':''}${hasHw?'<i class="calendar-dot hw"></i>':''}${hasGrade?'<i class="calendar-dot grade"></i>':''}</div></button>`;}
@@ -677,7 +699,7 @@ function renderSchedule(){
     el.innerHTML=`${tabs}<div class="day-tabs" id="dayTabs">${DAYS_ORDER.map(d=>`<button class="day-tab ${day===d?'active':''}" data-day="${d}">${DAYS_FR_SHORT[d]}</button>`).join('')}</div><div class="section-inline"><div><h2 class="section-title">${DAYS_FR[day][0].toUpperCase()+DAYS_FR[day].slice(1)}</h2><p class="muted">${slots.length} séance(s)</p></div></div>${slots.length?`<div class="card">${slots.map(s=>{const c=getClass(s.classId);return `<div class="slot clickable" data-slot="${s.id}"><div class="slot-time">${s.start}<br><span>${s.end}</span></div><div class="slot-bar"></div><div class="slot-body"><div class="cls">${escapeHtml(c?.name||'—')}</div><div class="topic">${escapeHtml(s.topic||'Sans thème')}</div></div><button class="mini-action" data-call="${s.id}" title="Faire l'appel" aria-label="Faire l'appel">✓</button></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune séance le ${DAYS_FR[day]}.</p><button class="btn btn-primary empty-action" id="emptyAddSlot">Ajouter une séance</button></div>`}`;
     document.querySelectorAll('#dayTabs .day-tab').forEach(b=>b.onclick=()=>{state.scheduleDayIndex=Number(b.dataset.day);renderSchedule();});document.querySelectorAll('[data-slot]').forEach(r=>r.onclick=()=>openSessionDetail(r.dataset.slot));document.querySelectorAll('[data-call]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.call);openAttendanceSheet(s.classId,s.id);});document.getElementById('emptyAddSlot')?.addEventListener('click',()=>openSlotForm(null,day));
   }
-  document.getElementById('modeWeek').onclick=()=>{state.scheduleView='week';renderSchedule();};document.getElementById('modeMonth').onclick=()=>{state.scheduleView='month';renderSchedule();};document.getElementById('scheduleAdd').onclick=()=>openSlotForm(null,state.scheduleDayIndex);
+  document.getElementById('modeWeek').onclick=()=>{state.scheduleView='week';renderSchedule();};document.getElementById('modeMonth').onclick=()=>{state.scheduleView='month';renderSchedule();};document.getElementById('schedulePdfBtn').onclick=openScheduleReport;document.getElementById('scheduleAdd').onclick=()=>openSlotForm(null,state.scheduleDayIndex);
 }
 
 /* ---------- CSV import ---------- */
@@ -766,9 +788,13 @@ async function syncNativeNotifications(){
       const [hours,minutes]=String(slot.start||'').split(':').map(Number);
       if(Number.isNaN(hours)||Number.isNaN(minutes))return;
       const at=new Date(date); at.setHours(hours,minutes,0,0);
-      if(at<=new Date(Date.now()+30000))return;
-      const id=700000+notifications.length+offset*1000;
-      notifications.push({id,title:`Cours · ${classLabel(slot.classId)}`,body:`${slot.topic||'Séance'} · ${slot.start}–${slot.end}`,schedule:{at,allowWhileIdle:true},channelId:'classe-cours',extra:{classId:slot.classId,scheduleId:slot.id,date:dateIso}});
+      const reminders=[{minutes:120,label:'dans 2 heures'},{minutes:30,label:'dans 30 minutes'}];
+      reminders.forEach(reminder=>{
+        const reminderAt=new Date(at.getTime()-reminder.minutes*60000);
+        if(reminderAt<=new Date(Date.now()+30000))return;
+        const id=700000+notifications.length+offset*1000;
+        notifications.push({id,title:`Cours ${reminder.label} · ${classLabel(slot.classId)}`,body:`${slot.topic||'Séance'} · ${slot.start}–${slot.end}`,schedule:{at:reminderAt,allowWhileIdle:true},channelId:'classe-cours',extra:{classId:slot.classId,scheduleId:slot.id,date:dateIso,reminder:reminder.minutes}});
+      });
     });
   }
   if(notifications.length) await bridge.schedule(notifications);

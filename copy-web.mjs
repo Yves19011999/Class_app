@@ -17,4 +17,12 @@ await build({
   outfile: join(web, 'native-notifications.js'),
   minify: true,
 });
+await build({
+  entryPoints: [join(root, 'schedule-pdf.mjs')],
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  outfile: join(web, 'schedule-pdf.js'),
+  minify: true,
+});
 console.log('Web assets copied to www/');

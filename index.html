@@ -701,6 +701,12 @@
 	.sheet{box-shadow:0 -10px 40px rgba(20,43,69,.16);}
 	.install-banner{background:linear-gradient(135deg,var(--emeraude),#21684F);box-shadow:0 10px 26px rgba(33,104,79,.18);}
 	.suggestion{background:#EAF6F1;border-color:#CBE7DA;}
+	.calendar-actions{display:flex;gap:6px;}
+	.schedule-preview{overflow:auto;border:1px solid var(--ligne);border-radius:10px;margin:8px 0 16px;}
+	.schedule-preview table{width:100%;border-collapse:collapse;min-width:440px;font-size:11px;background:var(--papier);}
+	.schedule-preview th{background:var(--ardoise);color:#fff;text-align:left;padding:8px 6px;font-weight:700;}
+	.schedule-preview td{padding:8px 6px;border-bottom:1px solid var(--craie-2);color:var(--encre);}
+	.schedule-preview tr:nth-child(even) td{background:var(--craie);}
 	@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 
   /* ---------- V3 additions ---------- */
@@ -846,6 +852,7 @@
 <input type="file" id="importFileInput" accept="application/json,.json" hidden>
 <input type="file" id="studentCsvInput" accept="text/csv,.csv" hidden>
   <script src="native-notifications.js"></script>
+  <script src="schedule-pdf.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
