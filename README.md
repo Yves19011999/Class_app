@@ -35,6 +35,8 @@
 - 🧠 UltraReview : revue pédagogique express sur l’accueil et analyse détaillée par classe
 - 🎯 UltraReview avancé : élèves à accompagner, absences, devoirs en retard et signaux prioritaires
 - ▶️ Mode séance en cours : démarrage, minuterie, appel rapide et fin de séance
+- 📝 Évaluations avancées : coefficient, saisie collective et suivi des résultats
+- 📄 Rapports professionnels : classe, bulletin, présence et devoirs, imprimables en PDF
 - 🔒 Permissions Android limitées au nécessaire : caméra pour les photos d’élèves et notifications
 
 ## Données
@@ -55,4 +57,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.7.0
+4.8.0

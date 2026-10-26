@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.7.0';
+const APP_VERSION = '4.8.0';
 let db = null;
 
 const STORES = {
@@ -574,7 +574,7 @@ function renderGrades(){
   const cid=state.gradesClassFilter,cls=getClass(cid),grades=state.grades.filter(g=>g.classId===cid).sort((a,b)=>b.date.localeCompare(a.date)),classAvg=weightedAvg(grades);
   el.innerHTML=`<div class="day-tabs" id="gradeClassTabs">${state.classes.map(c=>`<button class="day-tab ${cid===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)}</button>`).join('')}</div>${cid?`
     <div class="stat-grid"><div class="stat-box"><div class="v">${classAvg!==null?classAvg.toFixed(1):'—'}</div><div class="l">Moyenne pondérée</div></div><div class="stat-box"><div class="v">${grades.length}</div><div class="l">Notes</div></div><div class="stat-box"><div class="v">${studentsOf(cid).length}</div><div class="l">Élèves</div></div></div>
-    <div class="feature-grid"><button class="feature-btn" id="bulkGradeBtn">📝 Saisie collective<small>Noter toute la classe</small></button><button class="feature-btn" id="gradeStatsBtn">📊 Analyse<small>Distribution & progression</small></button></div>
+    <div class="feature-grid"><button class="feature-btn" id="bulkGradeBtn">📝 Nouvelle évaluation<small>Barème, coefficient et saisie collective</small></button><button class="feature-btn" id="gradeStatsBtn">📊 Analyse<small>Distribution & progression</small></button></div>
     <div class="grade-toolbar"><span class="muted">Coefficient intégré · tapote une note pour la modifier</span><button class="btn btn-sm btn-ghost" id="gradeExportCsv">CSV</button></div>
     ${grades.length?`<div class="card">${grades.slice(0,40).map(g=>{const s=state.students.find(x=>x.id===g.studentId);return `<div class="row clickable" data-edit-grade="${g.id}"><div class="avatar">${s?initials(s.name):'?'}</div><div class="row-main"><div class="row-title">${escapeHtml(s?.name||'Élève supprimé')}</div><div class="row-sub">${escapeHtml(g.label)} · ${fmtDateShort(g.date)} · coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune note pour ${escapeHtml(cls.name)}.</p><button class="btn btn-primary empty-action" id="emptyAddGrade">Ajouter une note</button></div>`}`:'<div class="empty"><p>Crée d’abord une classe.</p></div>'}`;
   document.querySelectorAll('#gradeClassTabs .day-tab').forEach(b=>b.onclick=()=>{state.gradesClassFilter=b.dataset.cls;renderGrades();});
@@ -601,7 +601,7 @@ function openGradeForm(presetClassId,presetStudentId,existing){
 function openBulkGradeForm(classId){
   const students=studentsOf(classId); if(!students.length){showToast('Cette classe n’a aucun élève','info');return;}
   openSheet(`<div class="sheet-header"><div><h3>Saisie collective</h3><p class="sheet-kicker">${escapeHtml(classLabel(classId))}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
-    <div class="field"><label>Évaluation</label><input id="bulkLabel" placeholder="Ex. Devoir surveillé 1"></div>
+    <div class="field"><label>Intitulé de l’évaluation</label><input id="bulkLabel" placeholder="Ex. Devoir surveillé 1"></div>
     <div class="field-row"><div class="field"><label>Coefficient</label><input id="bulkCoef" type="number" min="0.25" step="0.25" value="1"></div><div class="field"><label>Date</label><input id="bulkDate" type="date" value="${todayISO()}"></div></div>
     <div class="bulk-table">${students.map(s=>`<div class="bulk-row"><div>${escapeHtml(s.name)}</div><input class="bulk-value" data-sid="${s.id}" type="number" min="0" max="20" step="0.25" placeholder="/20"></div>`).join('')}</div>
     <button class="btn btn-primary btn-block" id="saveBulkGrades" style="margin-top:12px">Enregistrer les notes saisies</button>`);
@@ -638,8 +638,19 @@ function renderStats(){
   document.getElementById('importStudentsBtn').onclick=()=>document.getElementById('studentCsvInput').click();
 }
 function openReportChooser(){
-  openSheet(`<div class="sheet-header"><h3>Générer un rapport</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><p class="muted">Le rapport est optimisé pour l’impression et l’export PDF depuis le menu d’impression du téléphone.</p><div class="feature-grid">${state.classes.map(c=>`<button class="feature-btn" data-report="${c.id}">📄 ${escapeHtml(c.name)}<small>Bulletin synthétique</small></button>`).join('')}</div>`);
-  document.querySelectorAll('[data-report]').forEach(b=>b.onclick=()=>printClassReport(b.dataset.report));
+  openSheet(`<div class="sheet-header"><h3>Rapports professionnels</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><p class="muted">Choisis une classe et un rapport. Le document est prêt pour l’impression ou l’export PDF.</p><div class="field"><label>Classe</label><select id="reportClassSelect">${state.classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}</select></div><div class="feature-grid"><button class="feature-btn" data-report-type="class">📄 Rapport de classe<small>Synthèse pédagogique</small></button><button class="feature-btn" data-report-type="bulletin">📝 Bulletin de notes<small>Moyennes et appréciations</small></button><button class="feature-btn" data-report-type="attendance">✓ Rapport de présence<small>Présences, retards, absences</small></button><button class="feature-btn" data-report-type="homework">📚 Rapport de devoirs<small>Échéances et retards</small></button></div>`);
+  document.querySelectorAll('[data-report-type]').forEach(b=>b.onclick=()=>printProfessionalReport(document.getElementById('reportClassSelect').value,b.dataset.reportType));
+}
+function professionalAppreciation(value){return value===null?'Non évalué':value>=16?'Très bon travail':value>=12?'Résultats satisfaisants':value>=10?'Ensemble correct':'Des efforts sont nécessaires';}
+function printProfessionalReport(classId,type='class'){
+  const c=getClass(classId),students=studentsOf(classId),grades=state.grades.filter(g=>g.classId===classId),att=attendanceStats(classId),homework=state.homework.filter(h=>h.classId===classId),rows=students.map(s=>{const a=weightedAvg(grades.filter(g=>g.studentId===s.id)),aa=state.attendance.filter(x=>x.studentId===s.id),abs=aa.filter(x=>x.status==='a').length,ret=aa.filter(x=>x.status==='r').length,pre=aa.filter(x=>x.status==='p').length;return {s,a,abs,ret,pre};});
+  const titles={class:'Rapport pédagogique de classe',bulletin:'Bulletin de notes',attendance:'Rapport de présence',homework:'Rapport des devoirs'},title=titles[type]||titles.class;
+  let headers='',body='';
+  if(type==='bulletin'){headers='<th>Élève</th><th>Moyenne /20</th><th>Évaluations</th><th>Appréciation</th>';body=rows.map(r=>`<tr><td>${escapeHtml(r.s.name)}</td><td>${r.a!==null?r.a.toFixed(2):'—'}</td><td>${grades.filter(g=>g.studentId===r.s.id).length}</td><td>${professionalAppreciation(r.a)}</td></tr>`).join('');}
+  else if(type==='attendance'){headers='<th>Élève</th><th>Présences</th><th>Retards</th><th>Absences</th>';body=rows.map(r=>`<tr><td>${escapeHtml(r.s.name)}</td><td>${r.pre}</td><td>${r.ret}</td><td>${r.abs}</td></tr>`).join('');}
+  else if(type==='homework'){headers='<th>Devoir</th><th>Échéance</th><th>Statut</th>';body=homework.sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).map(h=>`<tr><td>${escapeHtml(h.title)}</td><td>${fmtDateShort(h.dueDate)}</td><td>${h.done?'Terminé':daysUntil(h.dueDate)<0?'En retard':'À faire'}</td></tr>`).join('');}
+  else{headers='<th>Élève</th><th>Moyenne</th><th>Absences</th><th>Appréciation</th>';body=rows.map(r=>`<tr><td>${escapeHtml(r.s.name)}</td><td>${r.a!==null?r.a.toFixed(2):'—'}</td><td>${r.abs}</td><td>${professionalAppreciation(r.a)}</td></tr>`).join('');}
+  let root=document.getElementById('printRoot');if(!root){root=document.createElement('div');root.id='printRoot';document.body.appendChild(root);}root.innerHTML=`<div class="print-report"><h1>${escapeHtml(getAppName())}</h1><h2>${escapeHtml(title)}</h2><p><b>${escapeHtml(c?.name||'Classe')}</b> · ${escapeHtml(c?.subject||'')} · ${fmtDateLong(todayISO())}</p><div class="print-summary"><b>Élèves : ${students.length}</b><b>Moyenne : ${weightedAvg(grades)?.toFixed(1)||'—'}/20</b><b>Présence : ${att.rate!==null?Math.round(att.rate)+'%':'—'}</b></div><table><thead><tr>${headers}</tr></thead><tbody>${body||`<tr><td colspan="4">Aucune donnée disponible.</td></tr>`}</tbody></table><p class="print-note">Document professionnel généré localement par Classe · UltraReview. Les données restent sur cet appareil.</p></div>`;closeSheet();setTimeout(()=>window.print(),80);
 }
 function printClassReport(classId){
   const c=getClass(classId),students=studentsOf(classId),gs=state.grades.filter(g=>g.classId===classId),att=attendanceStats(classId), rows=students.map(s=>({s,a:weightedAvg(gs.filter(g=>g.studentId===s.id)),abs:state.attendance.filter(x=>x.studentId===s.id&&x.classId===classId&&x.status==='a').length})).sort((a,b)=>a.s.name.localeCompare(b.s.name,'fr'));
