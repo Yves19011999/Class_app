@@ -33,6 +33,8 @@
 - 🤖 Projet Android Capacitor + workflow GitHub Actions pour construire un APK sans ordinateur
 - 🎨 Interface mobile modernisée : hiérarchie plus claire, cartes accessibles et contraste renforcé
 - 🧠 UltraReview : revue pédagogique express sur l’accueil et analyse détaillée par classe
+- 🎯 UltraReview avancé : élèves à accompagner, absences, devoirs en retard et signaux prioritaires
+- ▶️ Mode séance en cours : démarrage, minuterie, appel rapide et fin de séance
 - 🔒 Permissions Android limitées au nécessaire : caméra pour les photos d’élèves et notifications
 
 ## Données
@@ -53,4 +55,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.6.0
+4.7.0

@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.6.0';
+const APP_VERSION = '4.7.0';
 let db = null;
 
 const STORES = {
@@ -238,7 +238,7 @@ function renderToday(){
   const slots=state.schedule.filter(s=>s.day===dow).sort((a,b)=>a.start.localeCompare(b.start));
   const due=state.homework.filter(h=>!h.done&&h.dueDate===today), overdue=state.homework.filter(h=>!h.done&&daysUntil(h.dueDate)<0);
   let hero='';
-  if(now){const c=getClass(now.classId); hero=`<p class="hero-label">Séance en cours</p><div class="hero-main"><span class="num">${now.start}</span><span class="lab">${escapeHtml(c?.name||'—')}</span></div><div class="now-session"><span class="tag">Maintenant</span><div class="cls">${escapeHtml(now.topic||'Séance')}</div><div class="time">${studentsOf(now.classId).length} élève(s) · ${now.start}–${now.end}</div></div>`;}
+  if(now){const c=getClass(now.classId); hero=`<p class="hero-label">Séance en cours</p><div class="hero-main"><span class="num">${now.start}</span><span class="lab">${escapeHtml(c?.name||'—')}</span></div><div class="now-session"><span class="tag">Maintenant</span><div class="cls">${escapeHtml(now.topic||'Séance')}</div><div class="time">${studentsOf(now.classId).length} élève(s) · ${now.start}–${now.end}</div><button class="btn btn-primary btn-sm" id="heroSessionBtn" style="margin-top:10px">▶ Ouvrir la séance</button></div>`;}
   else if(next){const c=getClass(next.classId); hero=`<p class="hero-label">Prochaine séance</p><div class="hero-main"><span class="num">${next.start}</span><span class="lab">${escapeHtml(c?.name||'—')}</span></div><p class="hero-note">${escapeHtml(next.topic||'Séance')} · dans ${minutesUntilSlot(next)}</p>`;}
   else hero=`<p class="hero-label">${slots.length?'Aujourd’hui':'Journée libre'}</p><p class="hero-empty">${slots.length?'Toutes tes séances du jour sont terminées.':'Aucune séance programmée. Profites-en pour préparer tes prochains cours.'}</p>`;
   const suggestions=computeSuggestions();
@@ -268,6 +268,7 @@ function renderToday(){
   document.getElementById('qaDevoir').onclick=()=>{haptic();openHomeworkForm();};
   document.getElementById('qaNote').onclick=()=>{haptic();openGradeForm();};
   document.getElementById('qaEleve').onclick=()=>{haptic();openStudentForm();};
+  document.getElementById('heroSessionBtn')?.addEventListener('click',()=>openSessionDetail(now.id));
   document.getElementById('openUltraReview').onclick=()=>{haptic();document.querySelector('[data-tab="stats"]')?.click();};
   document.querySelectorAll('[data-att-slot]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.attSlot);if(s)openAttendanceSheet(s.classId,s.id);});
 }
@@ -617,6 +618,9 @@ function openClassGradeStats(classId){
 }
 
 /* ---------- Statistics dashboard ---------- */
+function ultraReviewRisks(){
+  return state.students.map(s=>{const avgStudent=weightedAvg(state.grades.filter(g=>g.studentId===s.id)),abs=state.attendance.filter(a=>a.studentId===s.id&&a.status==='a').length,late=state.homework.filter(h=>h.studentId===s.id&&!h.done&&daysUntil(h.dueDate)<0).length;const score=(avgStudent!==null&&avgStudent<10?2:0)+(abs>=3?2:0)+(late>=2?1:0);return {s,avgStudent,abs,late,score};}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,6);
+}
 function renderStats(){
   const el=document.getElementById('view-stats'), total=state.students.length, classes=state.classes.length, grades=state.grades, avgAll=weightedAvg(grades), at=attendanceStats(), pending=state.homework.filter(h=>!h.done).length;
   const classCards=state.classes.map(c=>{const gs=grades.filter(g=>g.classId===c.id),a=weightedAvg(gs),st=studentsOf(c.id),att=attendanceStats(c.id);return {c,a,st,att,gs};}).sort((a,b)=>(b.a??-1)-(a.a??-1));
@@ -625,6 +629,7 @@ function renderStats(){
     <div class="feature-grid"><button class="feature-btn" id="printReportBtn">📄 Rapport de classe<small>Imprimer / PDF</small></button><button class="feature-btn" id="importStudentsBtn">📥 Importer élèves<small>CSV / Excel export</small></button></div>
     <h2 class="section-title">Vue par classe</h2>
     ${classCards.length?`<div class="card">${classCards.map(x=>`<div class="rank-row"><div class="avatar">${escapeHtml((x.c.name||'?').slice(0,2).toUpperCase())}</div><div class="row-main"><div class="rank-name">${escapeHtml(x.c.name)}</div><div class="muted">${x.st.length} élève(s) · ${x.att.rate!==null?Math.round(x.att.rate)+'% présence':'pas d’appel'}</div><div class="progress"><i style="width:${Math.min(100,((x.a||0)/20)*100)}%"></i></div></div><span class="grade-pill ${x.a!==null?gradeClass(x.a):'grade-mid'}">${x.a!==null?x.a.toFixed(1):'—'}</span></div>`).join('')}</div>`:'<div class="empty"><p>Crée une classe pour commencer.</p></div>'}
+    <h2 class="section-title">Élèves à accompagner</h2>${ultraReviewRisks().length?`<div class="card">${ultraReviewRisks().map(x=>`<div class="rank-row"><div class="avatar" style="background:var(--terre)">${escapeHtml(initials(x.s.name))}</div><div class="row-main"><div class="rank-name">${escapeHtml(x.s.name)}</div><div class="muted">${x.avgStudent!==null?'Moyenne '+x.avgStudent.toFixed(1):'Pas de moyenne'} · ${x.abs} absence(s) · ${x.late} devoir(s) en retard</div></div><span class="chip chip-rouge">À suivre</span></div>`).join('')}</div>`:'<div class="status-banner success">Aucun profil prioritaire détecté.</div>'}
     <h2 class="section-title">Répartition des notes</h2>
     <div class="card"><div class="bar-chart">${[0,1,2,3,4].map(i=>{const n=grades.filter(g=>{const v=Number(g.value);return v>=i*4&&v<(i===4?20.01:(i+1)*4);}).length;const m=Math.max(1,...[0,1,2,3,4].map(j=>grades.filter(g=>{const v=Number(g.value);return v>=j*4&&v<(j===4?20.01:(j+1)*4);}).length));return `<div class="bar" style="height:${Math.max(5,n/m*100)}%"><span>${n}</span><small>${i*4}–${i*4+3.99}</small></div>`;}).join('')}</div></div>
     <h2 class="section-title">À surveiller</h2>${computeSuggestions().map(s=>`<div class="suggestion">${suggestionIcon(s.icon)}<div class="suggestion-text">${s.text}</div></div>`).join('')||'<div class="status-banner success">Aucun signal particulier détecté.</div>'}
@@ -644,9 +649,26 @@ function printClassReport(classId){
 }
 
 /* ---------- Calendar + session journal ---------- */
+let sessionTimer=null;
+function sessionElapsed(startedAt){
+  const seconds=Math.max(0,Math.floor((Date.now()-startedAt)/1000));
+  const h=Math.floor(seconds/3600),m=Math.floor((seconds%3600)/60),s=seconds%60;
+  return `${h?String(h).padStart(2,'0')+':':''}${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function refreshSessionTimer(session){
+  clearInterval(sessionTimer); const out=document.getElementById('sessionTimer'); if(!out||!session?.startedAt)return;
+  const tick=()=>{out.textContent=session.endedAt?`Durée : ${sessionElapsed(session.startedAt)}`:`Temps écoulé : ${sessionElapsed(session.startedAt)}`;}; tick(); if(!session.endedAt)sessionTimer=setInterval(tick,1000);
+}
+async function toggleSessionMode(slot){
+  let session=await getOrCreateSession(todayISO(),slot.classId,slot.id);
+  if(session.endedAt){showToast('Cette séance est déjà terminée','info');return;}
+  if(!session.startedAt){session.startedAt=Date.now();session.status='in_progress';await dbPut('sessions',session);await loadAll();document.getElementById('sessionModeBtn').textContent='■ Terminer la séance';document.getElementById('sessionModeBtn').classList.add('btn-danger');refreshSessionTimer(session);showToast('Séance démarrée');}
+  else{session.endedAt=Date.now();session.status='completed';await dbPut('sessions',session);await loadAll();clearInterval(sessionTimer);document.getElementById('sessionModeBtn').textContent='✓ Séance terminée';document.getElementById('sessionModeBtn').disabled=true;refreshSessionTimer(session);showToast('Séance terminée — pense à enregistrer le résumé');}
+}
 function openSessionDetail(scheduleId){
-  const slot=state.schedule.find(s=>s.id===scheduleId);if(!slot)return;const c=getClass(slot.classId),session=findSession(todayISO(),slot.classId,slot.id);const j=session?.journal||{};
+  const slot=state.schedule.find(s=>s.id===scheduleId);if(!slot)return;const c=getClass(slot.classId),session=findSession(todayISO(),slot.classId,slot.id),j=session?.journal||{};
   openSheet(`<div class="sheet-header"><div><h3>${escapeHtml(c?.name||'Séance')}</h3><p class="sheet-kicker">${escapeHtml(slot.topic||'Sans thème')} · ${slot.start}–${slot.end}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
+    <div class="session-mode-card"><div><span class="eyebrow">Mode séance</span><strong id="sessionTimer">${session?.startedAt?`Temps écoulé : ${sessionElapsed(session.startedAt)}`:'Prêt à démarrer'}</strong></div><button class="btn btn-primary btn-sm" id="sessionModeBtn">${session?.endedAt?'✓ Séance terminée':session?.startedAt?'■ Terminer la séance':'▶ Démarrer'}</button></div>
     <div class="feature-grid"><button class="feature-btn" id="sessionCallBtn">✓ Appel<small>Présences du jour</small></button><button class="feature-btn" id="sessionEditBtn">⚙ Modifier<small>Horaire et thème</small></button></div>
     <h2 class="section-title">Préparer / journaliser</h2>
     <div class="field"><label>Objectifs</label><textarea id="jObjectives" placeholder="Ce que les élèves doivent savoir faire...">${escapeHtml(j.objectives||'')}</textarea></div>
@@ -654,7 +676,7 @@ function openSessionDetail(scheduleId){
     <div class="field"><label>Matériel</label><input id="jMaterial" value="${escapeHtml(j.material||'')}" placeholder="Ex. dynamomètre, règle"></div>
     <div class="field"><label>À reprendre / notes</label><textarea id="jNotes" placeholder="Ce qui a été fait, difficultés, suite...">${escapeHtml(j.notes||'')}</textarea></div>
     <button class="btn btn-primary btn-block" id="saveJournalBtn">Enregistrer le journal</button>`);
-  document.getElementById('sessionCallBtn').onclick=()=>openAttendanceSheet(slot.classId,slot.id);document.getElementById('sessionEditBtn').onclick=()=>openSlotForm(slot);
+  document.getElementById('sessionModeBtn').onclick=()=>toggleSessionMode(slot);document.getElementById('sessionCallBtn').onclick=()=>openAttendanceSheet(slot.classId,slot.id);document.getElementById('sessionEditBtn').onclick=()=>openSlotForm(slot);refreshSessionTimer(session);
   document.getElementById('saveJournalBtn').onclick=async()=>{const s=await getOrCreateSession(todayISO(),slot.classId,slot.id);s.journal={objectives:document.getElementById('jObjectives').value.trim(),activities:document.getElementById('jActivities').value.trim(),material:document.getElementById('jMaterial').value.trim(),notes:document.getElementById('jNotes').value.trim()};await dbPut('sessions',s);await loadAll();closeSheet();showToast('Journal de séance enregistré');};
 }
 function scheduleReportRows(){
