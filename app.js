@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.5.0';
+const APP_VERSION = '4.6.0';
 let db = null;
 
 const STORES = {
@@ -258,6 +258,7 @@ function renderToday(){
       <div class="metric"><span>${avgAll!==null?avgAll.toFixed(1):'—'}</span><small>Moyenne</small></div>
       <div class="metric"><span>${pending}</span><small>Devoirs à faire</small></div>
     </div>
+    <div class="ultrareview-card"><div class="ultrareview-head"><div><span class="eyebrow">UltraReview</span><h2>Revue pédagogique express</h2></div><button class="btn btn-ghost btn-sm" id="openUltraReview">Voir l’analyse</button></div><div class="ultrareview-grid"><div><strong>${state.attendance.length?Math.round(attendanceStats().rate||0)+'%':'—'}</strong><small>Présence globale</small></div><div><strong>${overdue.length}</strong><small>Devoirs en retard</small></div><div><strong>${suggestions.length}</strong><small>Points à surveiller</small></div></div></div>
     ${suggestions.length?`<h2 class="section-title">À surveiller</h2>${suggestions.map(s=>`<div class="suggestion">${suggestionIcon(s.icon)}<div class="suggestion-text">${s.text}</div></div>`).join('')}`:''}
     <h2 class="section-title">Programme du jour</h2>
     ${slots.length?`<div class="card">${slots.map(s=>{const c=getClass(s.classId),isNow=now?.id===s.id;return `<div class="slot"><div class="slot-time">${s.start}</div><div class="slot-bar ${isNow?'is-now':''}"></div><div class="slot-body"><div class="cls">${escapeHtml(c?.name||'—')}</div><div class="topic">${escapeHtml(s.topic||'Sans thème')} · ${s.start}–${s.end}</div></div><button class="mini-action" data-att-slot="${s.id}" title="Faire l'appel" aria-label="Faire l'appel">✓</button></div>`;}).join('')}</div>`:`<div class="empty"><p>Pas de cours prévu aujourd'hui.</p></div>`}
@@ -267,6 +268,7 @@ function renderToday(){
   document.getElementById('qaDevoir').onclick=()=>{haptic();openHomeworkForm();};
   document.getElementById('qaNote').onclick=()=>{haptic();openGradeForm();};
   document.getElementById('qaEleve').onclick=()=>{haptic();openStudentForm();};
+  document.getElementById('openUltraReview').onclick=()=>{haptic();document.querySelector('[data-tab="stats"]')?.click();};
   document.querySelectorAll('[data-att-slot]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.attSlot);if(s)openAttendanceSheet(s.classId,s.id);});
 }
 
@@ -619,7 +621,7 @@ function renderStats(){
   const el=document.getElementById('view-stats'), total=state.students.length, classes=state.classes.length, grades=state.grades, avgAll=weightedAvg(grades), at=attendanceStats(), pending=state.homework.filter(h=>!h.done).length;
   const classCards=state.classes.map(c=>{const gs=grades.filter(g=>g.classId===c.id),a=weightedAvg(gs),st=studentsOf(c.id),att=attendanceStats(c.id);return {c,a,st,att,gs};}).sort((a,b)=>(b.a??-1)-(a.a??-1));
   const max=Math.max(1,...classCards.map(x=>x.a||0));
-  el.innerHTML=`<div class="insight-grid"><div class="insight-card"><div class="big">${total}</div><div class="label">Élèves</div></div><div class="insight-card"><div class="big">${classes}</div><div class="label">Classes</div></div><div class="insight-card"><div class="big">${avgAll!==null?avgAll.toFixed(1):'—'}</div><div class="label">Moyenne pondérée</div></div><div class="insight-card"><div class="big">${at.rate!==null?Math.round(at.rate)+'%':'—'}</div><div class="label">Présence globale</div></div></div>
+  el.innerHTML=`<div class="settings-brand"><div class="logo"><span style="font-size:24px">◒</span></div><div><strong>UltraReview</strong><small>Revue pédagogique et signaux utiles</small></div></div><div class="insight-grid"><div class="insight-card"><div class="big">${total}</div><div class="label">Élèves</div></div><div class="insight-card"><div class="big">${classes}</div><div class="label">Classes</div></div><div class="insight-card"><div class="big">${avgAll!==null?avgAll.toFixed(1):'—'}</div><div class="label">Moyenne pondérée</div></div><div class="insight-card"><div class="big">${at.rate!==null?Math.round(at.rate)+'%':'—'}</div><div class="label">Présence globale</div></div></div>
     <div class="feature-grid"><button class="feature-btn" id="printReportBtn">📄 Rapport de classe<small>Imprimer / PDF</small></button><button class="feature-btn" id="importStudentsBtn">📥 Importer élèves<small>CSV / Excel export</small></button></div>
     <h2 class="section-title">Vue par classe</h2>
     ${classCards.length?`<div class="card">${classCards.map(x=>`<div class="rank-row"><div class="avatar">${escapeHtml((x.c.name||'?').slice(0,2).toUpperCase())}</div><div class="row-main"><div class="rank-name">${escapeHtml(x.c.name)}</div><div class="muted">${x.st.length} élève(s) · ${x.att.rate!==null?Math.round(x.att.rate)+'% présence':'pas d’appel'}</div><div class="progress"><i style="width:${Math.min(100,((x.a||0)/20)*100)}%"></i></div></div><span class="grade-pill ${x.a!==null?gradeClass(x.a):'grade-mid'}">${x.a!==null?x.a.toFixed(1):'—'}</span></div>`).join('')}</div>`:'<div class="empty"><p>Crée une classe pour commencer.</p></div>'}

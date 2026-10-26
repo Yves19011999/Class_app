@@ -32,6 +32,7 @@
 - 📴 Fonctionnement hors connexion
 - 🤖 Projet Android Capacitor + workflow GitHub Actions pour construire un APK sans ordinateur
 - 🎨 Interface mobile modernisée : hiérarchie plus claire, cartes accessibles et contraste renforcé
+- 🧠 UltraReview : revue pédagogique express sur l’accueil et analyse détaillée par classe
 - 🔒 Permissions Android limitées au nécessaire : caméra pour les photos d’élèves et notifications
 
 ## Données
@@ -52,4 +53,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.5.0
+4.6.0
