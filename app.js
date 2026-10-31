@@ -246,17 +246,17 @@ function renderToday(){
   const classCount=state.classes.length, avgAll=avg(state.grades.map(g=>g.value));
   el.innerHTML=`
     <div class="hero">${hero}</div>
-    <div class="quick-grid">
-      <button class="quick-btn" id="qaPresence"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Appel</span></button>
-      <button class="quick-btn" id="qaDevoir"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Devoir</span></button>
-      <button class="quick-btn" id="qaNote"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m18.7 8-5.7 5.7-3.5-3.5L4 15.7"/></svg><span>Note</span></button>
-      <button class="quick-btn" id="qaEleve"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Élève</span></button>
-    </div>
-    <div class="metric-grid">
-      <div class="metric"><span>${classCount}</span><small>Classes</small></div>
-      <div class="metric"><span>${totalStudents}</span><small>Élèves</small></div>
-      <div class="metric"><span>${avgAll!==null?avgAll.toFixed(1):'—'}</span><small>Moyenne</small></div>
-      <div class="metric"><span>${pending}</span><small>Devoirs à faire</small></div>
+    <div class="card quick-actions-card"><div class="card-head"><h3>Actions rapides</h3><small>Accès immédiat</small></div><div class="quick-grid">
+      <button class="quick-btn quick" id="qaPresence"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Appel</span></button>
+      <button class="quick-btn quick" id="qaDevoir"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Devoir</span></button>
+      <button class="quick-btn quick" id="qaNote"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m18.7 8-5.7 5.7-3.5-3.5L4 15.7"/></svg><span>Note</span></button>
+      <button class="quick-btn quick" id="qaEleve"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Élève</span></button>
+    </div></div>
+    <div class="metrics metric-grid">
+      <div class="metric blue"><div class="metric-icon">▣</div><b>${classCount}</b><span>Classes actives</span></div>
+      <div class="metric green"><div class="metric-icon">●</div><b>${totalStudents}</b><span>Élèves inscrits</span></div>
+      <div class="metric orange"><div class="metric-icon">◷</div><b>${avgAll!==null?avgAll.toFixed(1):'—'}</b><span>Moyenne générale</span></div>
+      <div class="metric purple"><div class="metric-icon">★</div><b>${pending}</b><span>Devoirs à faire</span></div>
     </div>
     <div class="ultrareview-card"><div class="ultrareview-head"><div><span class="eyebrow">UltraReview</span><h2>Revue pédagogique express</h2></div><button class="btn btn-ghost btn-sm" id="openUltraReview">Voir l’analyse</button></div><div class="ultrareview-grid"><div><strong>${state.attendance.length?Math.round(attendanceStats().rate||0)+'%':'—'}</strong><small>Présence globale</small></div><div><strong>${overdue.length}</strong><small>Devoirs en retard</small></div><div><strong>${suggestions.length}</strong><small>Points à surveiller</small></div></div></div>
     ${suggestions.length?`<h2 class="section-title">À surveiller</h2>${suggestions.map(s=>`<div class="suggestion">${suggestionIcon(s.icon)}<div class="suggestion-text">${s.text}</div></div>`).join('')}`:''}
@@ -280,7 +280,7 @@ function renderStudents(){
     <div class="class-cta"><div><span class="class-cta-kicker">Organisation</span><strong>Mes classes</strong><p>Crée une classe pour commencer à ajouter tes élèves, notes et présences.</p></div><button class="btn btn-primary" id="visibleAddClassBtn">+ Créer une classe</button></div>
     <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="studentSearchInput" value="${escapeHtml(state.studentsSearch)}" placeholder="Rechercher un élève..." aria-label="Rechercher un élève"></div>
     <div class="filter-row"><div class="day-tabs" id="classFilterTabs"><button class="day-tab ${state.studentsClassFilter==='all'?'active':''}" data-cls="all">Toutes (${state.students.length})</button>${state.classes.map(c=>`<button class="day-tab ${state.studentsClassFilter===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)} (${studentsOf(c.id).length})</button>`).join('')}</div><button class="btn-icon" id="manageClassesBtn" title="Gérer les classes" aria-label="Gérer les classes">⚙</button></div>
-    ${filtered.length?`<div class="card">${filtered.map(s=>{const gs=gradesOfStudent(s.id),a=avg(gs.map(g=>g.value)),att=state.attendance.filter(x=>x.studentId===s.id);const abs=att.filter(x=>x.status==='a').length;return `<div class="row clickable" data-student="${s.id}"><div class="avatar">${initials(s.name)}</div><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div><div class="row-sub">${escapeHtml(classLabel(s.classId))} · ${gs.length} note(s) · ${abs} absence(s)</div></div><div class="row-end">${a!==null?`<span class="grade-pill ${gradeClass(a)}">${a.toFixed(1)}</span>`:''}</div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucun élève ${state.studentsSearch?'ne correspond à ta recherche':'enregistré'}.</p><button class="btn btn-primary empty-action" id="emptyAddStudent">Ajouter un élève</button></div>`}
+    ${filtered.length?`<div class="card student-list">${filtered.map(s=>{const gs=gradesOfStudent(s.id),a=avg(gs.map(g=>g.value)),att=state.attendance.filter(x=>x.studentId===s.id);const abs=att.filter(x=>x.status==='a').length;return `<div class="row student-card clickable" data-student="${s.id}"><div class="avatar student-avatar">${initials(s.name)}</div><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div><div class="row-sub">${escapeHtml(classLabel(s.classId))} · ${gs.length} note(s) · ${abs} absence(s)</div></div><div class="row-end">${a!==null?`<span class="grade-pill ${gradeClass(a)}">${a.toFixed(1)}</span>`:''}</div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucun élève ${state.studentsSearch?'ne correspond à ta recherche':'enregistré'}.</p><button class="btn btn-primary empty-action" id="emptyAddStudent">Ajouter un élève</button></div>`}
   `;
   document.getElementById('studentSearchInput').oninput=e=>{state.studentsSearch=e.target.value;renderStudents();const i=document.getElementById('studentSearchInput');i.focus();i.setSelectionRange(i.value.length,i.value.length);};
   document.querySelectorAll('#classFilterTabs .day-tab').forEach(b=>b.onclick=()=>{state.studentsClassFilter=b.dataset.cls;renderStudents();});
