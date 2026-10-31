@@ -18,9 +18,11 @@ Le dépôt contient l’application PWA offline-first, le projet Capacitor gén�
 - Le build déclare `CAMERA` (photo d’élève) et `POST_NOTIFICATIONS` (rappels de séance). Les rappels sont désormais planifiés nativement sur Android pour fonctionner même lorsque l’application est fermée. Aucun accès général au stockage Android n’est demandé : les données restent dans IndexedDB et les fichiers sont choisis via le sélecteur système.
 - Les nouvelles installations démarrent sans données préchargées : crée tes classes depuis le bouton visible dans l’écran Élèves.
 - Pour préserver les données, exporte une sauvegarde JSON avant une mise à jour ou un changement d’appareil. Les APK utilisent un versionCode croissant; configure et protège une clé de signature stable dans les secrets GitHub avant toute distribution de mises à jour à des utilisateurs.
+- L’interface UltraReview 4.9 intégrée (CSS source + couche d’adaptation) est incluse dans les assets Android et précachée par le service worker; le shell et les styles restent utilisables hors ligne après le premier chargement.
+- Le HTML de démonstration contient des exemples statiques; ces faux chiffres et écrans non implémentés ne sont pas injectés dans l’application réelle. Les indicateurs du tableau de bord utilisent les données IndexedDB présentes sur l’appareil.
 
 ## Identité Android
 
 - Nom : Classe
 - Application ID : `com.classe.gestion`
-- Version : 5.0.0
+- Version : 5.1.0

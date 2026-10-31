@@ -1,6 +1,6 @@
-const CACHE_NAME = 'classe-cache-v5-0';
+const CACHE_NAME = 'classe-cache-v5-1';
 const CACHE_PREFIX = 'classe-cache-';
-const CORE_ASSETS = ['./','./index.html','./app.js','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CORE_ASSETS = ['./','./index.html','./app.js','./class-ultrareview-ui-v4.9.0.css','./class-app-integration.css','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil((async()=>{

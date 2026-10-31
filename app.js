@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '5.0.0';
+const APP_VERSION = '5.1.0';
 let db = null;
 
 const STORES = {
@@ -247,20 +247,27 @@ function renderToday(){
   else hero=`<p class="hero-label">${slots.length?'Aujourd’hui':'Journée libre'}</p><p class="hero-empty">${slots.length?'Toutes tes séances du jour sont terminées.':'Aucune séance programmée. Profites-en pour préparer tes prochains cours.'}</p>`;
   const suggestions=computeSuggestions();
   const totalStudents=state.students.length, pending=state.homework.filter(h=>!h.done).length;
-  const classCount=state.classes.length, avgAll=avg(state.grades.map(g=>g.value));
+  const classCount=state.classes.length, avgAll=weightedAvg(state.grades), attendance=attendanceStats();
+  const classRows=state.classes.slice(0,6).map(c=>{const students=studentsOf(c.id),stat=attendanceStats(c.id);return `<div class="class-row"><div class="class-badge">${escapeHtml((c.name||'?').slice(0,3))}</div><div class="class-main"><b>${escapeHtml(c.name)}</b><span>${students.length} élève(s) · ${stat.rate!==null?Math.round(stat.rate)+'% présence':'pas encore d’appel'}</span><div class="progress"><i style="width:${stat.rate===null?0:Math.round(stat.rate)}%"></i></div></div><span class="percent">${stat.rate===null?'—':Math.round(stat.rate)+'%'}</span></div>`;}).join('');
+  const totalAttendance=attendance.total||1,pPct=Math.round(attendance.p/totalAttendance*100),rPct=Math.round(attendance.r/totalAttendance*100),aPct=Math.max(0,100-pPct-rPct);
   el.innerHTML=`
-    <div class="hero">${hero}</div>
-    <div class="quick-grid">
+    <div class="screen-label"><span>TABLEAU DE BORD</span><h2>Accueil / Vue du jour</h2></div>
+    <section class="hero dashboard-hero"><div class="hero-intro"><div class="eyebrow">AUJOURD’HUI · ${escapeHtml(fmtDateLong(today))}</div><h2>Bonjour</h2><p>Enseigner · Suivre · Réussir — votre espace de pilotage pédagogique.</p></div><div class="hero-stat"><b>${avgAll!==null?avgAll.toFixed(1):'—'}</b><span>Moyenne générale /20</span></div><div class="dashboard-session">${hero}</div></section>
+    <div class="metric-grid metrics">
+      <div class="metric blue"><div class="metric-icon" aria-hidden="true">▣</div><b>${classCount}</b><span>Classes actives</span></div>
+      <div class="metric green"><div class="metric-icon" aria-hidden="true">●</div><b>${totalStudents}</b><span>Élèves inscrits</span></div>
+      <div class="metric orange"><div class="metric-icon" aria-hidden="true">◷</div><b>${slots.length}</b><span>Séances aujourd’hui</span></div>
+      <div class="metric purple"><div class="metric-icon" aria-hidden="true">▤</div><b>${pending}</b><span>Devoirs à faire</span></div>
+    </div>
+    <section class="card quick-actions-card"><div class="card-head"><h3>Actions rapides</h3><small>Accès immédiat</small></div><div class="quick-grid">
       <button class="quick-btn" id="qaPresence"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Appel</span></button>
       <button class="quick-btn" id="qaDevoir"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Devoir</span></button>
-      <button class="quick-btn" id="qaNote"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m18.7 8-5.7 5.7-3.5-3.5L4 15.7"/></svg><span>Note</span></button>
+      <button class="quick-btn" id="qaNote"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m18.7 8-5.7 5.7-3.5-3.5L4 15.7"/></svg><span>Notes</span></button>
       <button class="quick-btn" id="qaEleve"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Élève</span></button>
-    </div>
-    <div class="metric-grid">
-      <div class="metric"><span>${classCount}</span><small>Classes</small></div>
-      <div class="metric"><span>${totalStudents}</span><small>Élèves</small></div>
-      <div class="metric"><span>${avgAll!==null?avgAll.toFixed(1):'—'}</span><small>Moyenne</small></div>
-      <div class="metric"><span>${pending}</span><small>Devoirs à faire</small></div>
+    </div></section>
+    <div class="dashboard-columns">
+      <section class="card"><div class="card-head"><h3>Vue d’ensemble des classes</h3><button class="link-btn" id="dashboardClassesLink" type="button">Voir tout →</button></div><div class="class-list">${classRows||'<div class="dashboard-empty">Aucune classe pour le moment. Crée une classe depuis l’espace Élèves pour commencer.</div>'}</div></section>
+      <section class="card"><div class="card-head"><h3>Présences enregistrées</h3><button class="link-btn" id="dashboardAttendanceLink" type="button">Faire l’appel</button></div>${attendance.total?`<div class="donut-wrap"><div class="donut" style="background:conic-gradient(var(--green) 0 ${pPct}%,var(--orange) ${pPct}% ${pPct+rPct}%,var(--red) ${pPct+rPct}% 100%)"><strong>${Math.round(attendance.rate||0)}%</strong></div><div class="stat-list"><div><span><i class="dot green"></i>Présents</span><b>${attendance.p}</b></div><div><span><i class="dot red"></i>Absents</span><b>${attendance.a}</b></div><div><span><i class="dot orange"></i>Retards</span><b>${attendance.r}</b></div></div></div>`:'<div class="dashboard-empty">Aucun appel enregistré. Les présences de vos séances apparaîtront ici.</div>'}</section>
     </div>
     <div class="ultrareview-card"><div class="ultrareview-head"><div><span class="eyebrow">UltraReview</span><h2>Revue pédagogique express</h2></div><button class="btn btn-ghost btn-sm" id="openUltraReview">Voir l’analyse</button></div><div class="ultrareview-grid"><div><strong>${state.attendance.length?Math.round(attendanceStats().rate||0)+'%':'—'}</strong><small>Présence globale</small></div><div><strong>${overdue.length}</strong><small>Devoirs en retard</small></div><div><strong>${suggestions.length}</strong><small>Points à surveiller</small></div></div></div>
     ${suggestions.length?`<h2 class="section-title">À surveiller</h2>${suggestions.map(s=>`<div class="suggestion">${suggestionIcon(s.icon)}<div class="suggestion-text">${s.text}</div></div>`).join('')}`:''}
@@ -272,6 +279,8 @@ function renderToday(){
   document.getElementById('qaDevoir').onclick=()=>{haptic();openHomeworkForm();};
   document.getElementById('qaNote').onclick=()=>{haptic();openGradeForm();};
   document.getElementById('qaEleve').onclick=()=>{haptic();openStudentForm();};
+  document.getElementById('dashboardClassesLink').onclick=()=>document.querySelector('.tab[data-tab="students"]')?.click();
+  document.getElementById('dashboardAttendanceLink').onclick=()=>{haptic();const classId=now?.classId||state.classes[0]?.id;if(!classId){showToast('Crée d’abord une classe','info');return;}openAttendanceSheet(classId,now?.id||null);};
   document.getElementById('heroSessionBtn')?.addEventListener('click',()=>openSessionDetail(now.id));
   document.getElementById('openUltraReview').onclick=()=>{haptic();document.querySelector('[data-tab="stats"]')?.click();};
   document.querySelectorAll('[data-att-slot]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.attSlot);if(s)openAttendanceSheet(s.classId,s.id);});
@@ -784,20 +793,31 @@ function renderTopbar(){
   const titles={today:"Aujourd'hui",students:'Élèves',schedule:'Planning',homework:'Devoirs',grades:'Notes',stats:'Statistiques'};el.textContent=titles[state.currentTab]||'Classe';sub.textContent=state.currentTab==='today'?fmtDateLong(todayISO()):'';
 }
 function renderAll(){renderTopbar();renderToday();renderStudents();renderSchedule();renderHomework();renderGrades();renderStats();updateFab();}
+function syncSideNav(route){
+  document.querySelectorAll('.side-link[data-nav-tab]').forEach(b=>{const active=b.dataset.navTab===route;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+}
 function setupTabs(){
   document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{haptic();
     document.querySelectorAll('.tab').forEach(t=>{const active=t===tab;t.classList.toggle('active',active);if(active)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current');});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==`view-${tab.dataset.tab}`));
     state.currentTab=tab.dataset.tab;
-    renderTopbar(); updateFab(); window.scrollTo(0,0);
+    syncSideNav(state.currentTab);renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
   document.getElementById('topbarInsights').onclick=()=>{haptic();
     const tab=document.querySelector('.tab[data-tab="stats"]');
     if(tab) document.querySelectorAll('.tab').forEach(t=>{const active=t===tab;t.classList.toggle('active',active);if(active)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current');});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats'));
-    state.currentTab='stats'; renderTopbar(); updateFab(); renderStats(); window.scrollTo(0,0);
+    state.currentTab='stats';syncSideNav('stats');renderTopbar(); updateFab(); renderStats(); window.scrollTo(0,0);
   };
+  document.querySelectorAll('.side-link[data-nav-tab]').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.navTab==='stats'){document.getElementById('topbarInsights').click();return;}document.querySelector(`.tab[data-tab="${button.dataset.navTab}"]`)?.click();}));
+  document.querySelectorAll('.side-link[data-nav-action]').forEach(button=>button.addEventListener('click',()=>{
+    haptic();const action=button.dataset.navAction;
+    if(action==='insights'){document.getElementById('topbarInsights').click();return;}
+    if(action==='attendance'){const slot=currentSlot(),classId=slot?.classId||state.classes[0]?.id;if(!classId){showToast('Crée d’abord une classe','info');return;}openAttendanceSheet(classId,slot?.id||null);return;}
+    if(action==='reports'){document.getElementById('topbarInsights').click();if(!state.classes.length){showToast('Crée d’abord une classe pour préparer un rapport','info');return;}openReportChooser();return;}
+    if(action==='settings'){openSettings();}
+  }));
   document.getElementById('importFileInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)importData(f);e.target.value='';});
   document.getElementById('studentCsvInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)importStudentsCsv(f);e.target.value='';});
 }
@@ -807,7 +827,7 @@ function openHashRoute(){
   const allowed=['today','students','schedule','homework','grades','stats'];
   if(!allowed.includes(key)) return;
   const tab=document.querySelector(`.tab[data-tab="${key}"]`);
-  if(key==='stats'){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats')); document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('active');t.removeAttribute('aria-current');}); state.currentTab='stats'; renderTopbar(); renderStats(); return; }
+  if(key==='stats'){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats')); document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('active');t.removeAttribute('aria-current');});state.currentTab='stats';syncSideNav('stats');renderTopbar();renderStats();return; }
   if(tab){ tab.click(); }
 }
 

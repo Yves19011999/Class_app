@@ -1,6 +1,6 @@
 {
   "name": "classe-gestion-classe",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "private": true,
   "description": "Classe — gestion de classe offline-first, PWA et Android.",
   "scripts": {
@@ -16,7 +16,7 @@
     "@capacitor/android": "^7.4.0",
     "@capacitor/core": "^7.4.0",
     "@capacitor/local-notifications": "^7.0.7",
-    "jspdf": "^3.0.4"
+    "jspdf": "4.2.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.0",

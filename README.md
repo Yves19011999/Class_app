@@ -1,10 +1,11 @@
-# Classe — Gestion de classe · v5.0.0
+# Classe — Gestion de classe · v5.1.0
 
 **Classe** est un carnet de bord pédagogique mobile, offline-first, installable comme PWA et prêt à être empaqueté en application Android.
 
 ## Fonctionnalités
 
-- ✨ Interface 5.0 : navigation adaptative, boutons en verre givré, pictogrammes fonctionnels et animations respectueuses des préférences de mouvement
+- ✨ Interface 5.1 inspirée du prototype Classe UltraReview joint : sidebar pédagogique sur ordinateur, barre mobile, tableau de bord à cartes, palette bleue/verte et composants responsive
+- ♿ Pictogrammes SVG intégrés, commandes accessibles au clavier et animations respectant la préférence de mouvement réduit
 
 - 🏠 Tableau de bord « Aujourd’hui » avec prochaine séance et alertes
 - 👨‍🎓 Élèves, recherche, filtres et fiches individuelles
@@ -33,7 +34,7 @@
 - ↗ Partage de l’application
 - 📴 Fonctionnement hors connexion
 - 🤖 Projet Android Capacitor + workflow GitHub Actions pour construire un APK sans ordinateur
-- 🎨 Interface mobile modernisée : hiérarchie plus claire, cartes accessibles et contraste renforcé
+- 🎨 Styles fournis conservés en local et embarqués dans le cache PWA et l’APK Android
 - 🧠 UltraReview : revue pédagogique express sur l’accueil et analyse détaillée par classe
 - 🎯 UltraReview avancé : élèves à accompagner, absences, devoirs en retard et signaux prioritaires
 - ▶️ Mode séance en cours : démarrage, minuterie, appel rapide et fin de séance
@@ -61,4 +62,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-5.0.0
+5.1.0
