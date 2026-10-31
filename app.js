@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.8.0';
+const APP_VERSION = '4.9.0';
 let db = null;
 
 const STORES = {
@@ -347,19 +347,22 @@ function openAttendanceSheet(classId,scheduleId){
   if(!scheduleId && currentSlot()?.classId===classId) scheduleId=currentSlot().id;
   const marks={};
   const existingSession=findSession(today,classId,scheduleId);
-  list.forEach(s=>{const rec=existingSession?state.attendance.find(a=>a.studentId===s.id&&a.sessionId===existingSession.id):null;marks[s.id]=rec?.status||'p';});
+  list.forEach(s=>{const rec=existingSession?state.attendance.find(a=>a.studentId===s.id&&a.sessionId===existingSession.id):null;marks[s.id]=rec?.status||'';});
   const slotLabel=state.schedule.find(s=>s.id===scheduleId);
   openSheet(`<div class="sheet-header"><div><h3>Appel · ${escapeHtml(cls?.name||'')}</h3><p class="sheet-kicker">${fmtDateLong(today)}${slotLabel?' · '+slotLabel.start+'–'+slotLabel.end:''}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
     ${slots.length?`<div class="field"><label>Séance du jour</label><select id="attSlotSelect"><option value="">Appel hors emploi du temps</option>${slots.map(s=>`<option value="${s.id}" ${scheduleId===s.id?'selected':''}>${s.start}–${s.end} · ${escapeHtml(s.topic||'Séance')}</option>`).join('')}</select></div>`:''}
-    <div class="attendance-tools"><button class="btn btn-sm btn-ghost" id="markAllPresent">Tout présent</button><span class="muted">P présent · R retard · A absent</span></div>
+    <div class="attendance-tools"><button class="btn btn-sm btn-ghost" id="markAllPresent">Tout présent</button><span class="muted">P présent · R retard · A absent</span><span class="muted" id="attMissingCount" role="status" aria-live="polite"></span></div>
     ${list.length?`<div class="card" id="attRows">${attendanceRows(list,marks)}</div>`:'<p class="muted">Aucun élève dans cette classe.</p>'}
     <button class="btn btn-primary btn-block" id="saveAttendanceBtn">Enregistrer l’appel</button>`);
-  function refresh(){document.getElementById('attRows').innerHTML=attendanceRows(list,marks);bind();}
+  function refresh(){document.getElementById('attRows').innerHTML=attendanceRows(list,marks);bind();updatePending();}
+  function updatePending(){const pending=list.filter(s=>!['p','r','a'].includes(marks[s.id])).length,el=document.getElementById('attMissingCount');if(el)el.textContent=pending?`${pending} à pointer`:'Appel complet';}
   function bind(){document.querySelectorAll('#attRows .status-btn').forEach(b=>b.onclick=()=>{marks[b.dataset.sid]=b.dataset.status;refresh();});}
-  bind();
+  bind();updatePending();
   document.getElementById('markAllPresent').onclick=()=>{list.forEach(s=>marks[s.id]='p');refresh();};
   document.getElementById('attSlotSelect')?.addEventListener('change',()=>openAttendanceSheet(classId,document.getElementById('attSlotSelect').value||null));
   document.getElementById('saveAttendanceBtn').onclick=async()=>{
+    const missing=list.filter(s=>!['p','r','a'].includes(marks[s.id])).length;
+    if(missing){showToast(`Pointe les ${missing} élève(s) restant(s) avant d’enregistrer`,'info');return;}
     const selectedSchedule=document.getElementById('attSlotSelect')?.value||scheduleId||null;
     const session=await getOrCreateSession(today,classId,selectedSchedule);
     for(const s of list){const old=state.attendance.find(a=>a.sessionId===session.id&&a.studentId===s.id);await dbPut('attendance',{id:old?.id||uid(),sessionId:session.id,studentId:s.id,classId,date:today,status:marks[s.id]});}
@@ -463,14 +466,41 @@ async function exportData(){
 }
 function openImportPicker(){ document.getElementById('importFileInput').click(); }
 async function importData(file){
+  let committed=false;
   try{
     const parsed=JSON.parse(await file.text());
-    if(!parsed?.stores?.classes||!parsed?.stores?.students) throw new Error('Format invalide');
-    if(!confirm('Restaurer cette sauvegarde ? Les données actuelles seront remplacées.')) return;
-    for(const name of Object.keys(STORES)) await clearStore(name);
-    for(const name of Object.keys(STORES)){for(const row of (parsed.stores[name]||[])) await dbPut(name,row);}
-    await loadAll();await migrateLegacyAttendance();await loadAll();renderAll();closeSheet();showToast('Sauvegarde restaurée');
-  }catch(e){console.error(e);showToast('Impossible de restaurer cette sauvegarde','info');}
+    if(!parsed||![1,2].includes(Number(parsed.version))||!parsed.stores||!Array.isArray(parsed.stores.classes)||!Array.isArray(parsed.stores.students)) throw new Error('Format de sauvegarde non reconnu');
+    const backup={};
+    for(const [name,cfg] of Object.entries(STORES)){
+      const rows=parsed.stores[name]??[];
+      if(!Array.isArray(rows)||rows.length>50000) throw new Error(`Données invalides pour ${name}`);
+      const seen=new Set();
+      for(const row of rows){
+        if(!row||typeof row!=='object'||Array.isArray(row)) throw new Error(`Enregistrement invalide dans ${name}`);
+        const key=row[cfg.keyPath];
+        if((typeof key!=='string'&&typeof key!=='number')||String(key).length===0||seen.has(String(key))) throw new Error(`Identifiant absent ou répété dans ${name}`);
+        seen.add(String(key));
+      }
+      backup[name]=rows;
+    }
+    const classCount=backup.classes.length,studentCount=backup.students.length;
+    if(!confirm(`Restaurer cette sauvegarde (${classCount} classe(s), ${studentCount} élève(s)) ? Les données actuelles seront remplacées.`)) return;
+    await new Promise((resolve,reject)=>{
+      let transaction;
+      try{transaction=db.transaction(Object.keys(STORES),'readwrite');}catch(e){reject(e);return;}
+      transaction.oncomplete=()=>resolve();
+      transaction.onerror=()=>reject(transaction.error||new Error('Échec de la transaction'));
+      transaction.onabort=()=>reject(transaction.error||new Error('Restauration annulée'));
+      for(const name of Object.keys(STORES)){
+        const store=transaction.objectStore(name);store.clear();
+        for(const row of backup[name])store.put(row);
+      }
+    });
+    committed=true;
+    await loadAll();
+    try{await migrateLegacyAttendance();await loadAll();}catch(migrationError){console.warn('Migration de présence après restauration :',migrationError);}
+    renderAll();closeSheet();showToast('Sauvegarde restaurée');
+  }catch(e){console.error('Restauration JSON :',e);showToast(committed?'Sauvegarde restaurée, mais l’écran n’a pas pu être actualisé. Recharge l’application.':`Restauration refusée : ${e.message||'fichier invalide'}. Les données existantes sont préservées.`,'info');}
 }
 function exportGradesCSV(classId){
   const rows=[['Élève','Classe','Évaluation','Note /20','Date']];

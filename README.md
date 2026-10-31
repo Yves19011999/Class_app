@@ -1,4 +1,4 @@
-# Classe — UltraReview v4.5
+# Classe — Gestion de classe · v4.9.0
 
 **Classe** est un carnet de bord pédagogique mobile, offline-first, installable comme PWA et prêt à être empaqueté en application Android.
 
@@ -39,9 +39,11 @@
 - 📄 Rapports professionnels : classe, bulletin, présence et devoirs, imprimables en PDF
 - 🔒 Permissions Android limitées au nécessaire : caméra pour les photos d’élèves et notifications
 
-## Données
+## Données, sauvegardes et confidentialité
 
-Les données scolaires restent dans IndexedDB sur l’appareil. **Exporte régulièrement une sauvegarde JSON**, surtout avant de changer de téléphone.
+Les données scolaires restent dans IndexedDB sur l’appareil : aucun compte ni serveur n’est nécessaire pour utiliser les fonctions de gestion de classe. Pour utiliser l’application hors ligne, ouvre-la au moins une fois avec une connexion afin que la PWA mette ses fichiers en cache. **Exporte régulièrement une sauvegarde JSON**, surtout avant de changer de téléphone ou de mettre à jour l’application. La restauration vérifie le fichier avant de remplacer les données et applique le remplacement dans une transaction locale.
+
+Le verrouillage PIN est une protection d’interface locale, pas un chiffrement de la base de données. Les sauvegardes JSON ne sont pas chiffrées : garde-les dans un emplacement privé et ne les partage pas sans précaution.
 
 ## Installation PWA
 
@@ -57,4 +59,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.8.0
+4.9.0
