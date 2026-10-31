@@ -236,41 +236,55 @@ function renderToday(){
   const el=document.getElementById('view-today'), today=todayISO(), dow=new Date().getDay();
   const now=currentSlot(), next=!now?nextSlot():null;
   const slots=state.schedule.filter(s=>s.day===dow).sort((a,b)=>a.start.localeCompare(b.start));
-  const due=state.homework.filter(h=>!h.done&&h.dueDate===today), overdue=state.homework.filter(h=>!h.done&&daysUntil(h.dueDate)<0);
-  let hero='';
-  if(now){const c=getClass(now.classId); hero=`<p class="hero-label">Séance en cours</p><div class="hero-main"><span class="num">${now.start}</span><span class="lab">${escapeHtml(c?.name||'—')}</span></div><div class="now-session"><span class="tag">Maintenant</span><div class="cls">${escapeHtml(now.topic||'Séance')}</div><div class="time">${studentsOf(now.classId).length} élève(s) · ${now.start}–${now.end}</div><button class="btn btn-primary btn-sm" id="heroSessionBtn" style="margin-top:10px">▶ Ouvrir la séance</button></div>`;}
-  else if(next){const c=getClass(next.classId); hero=`<p class="hero-label">Prochaine séance</p><div class="hero-main"><span class="num">${next.start}</span><span class="lab">${escapeHtml(c?.name||'—')}</span></div><p class="hero-note">${escapeHtml(next.topic||'Séance')} · dans ${minutesUntilSlot(next)}</p>`;}
-  else hero=`<p class="hero-label">${slots.length?'Aujourd’hui':'Journée libre'}</p><p class="hero-empty">${slots.length?'Toutes tes séances du jour sont terminées.':'Aucune séance programmée. Profites-en pour préparer tes prochains cours.'}</p>`;
-  const suggestions=computeSuggestions();
-  const totalStudents=state.students.length, pending=state.homework.filter(h=>!h.done).length;
-  const classCount=state.classes.length, avgAll=avg(state.grades.map(g=>g.value));
+  const allPending=state.homework.filter(h=>!h.done).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const overdue=allPending.filter(h=>daysUntil(h.dueDate)<0);
+  const suggestions=computeSuggestions(), totalStudents=state.students.length;
+  const classCount=state.classes.length, avgAll=weightedAvg(state.grades), at=attendanceStats();
+  const present=state.attendance.filter(a=>a.status==='p').length, absent=state.attendance.filter(a=>a.status==='a').length, late=state.attendance.filter(a=>a.status==='r').length;
+  const maxClassAvg=Math.max(1,...state.classes.map(c=>weightedAvg(state.grades.filter(g=>g.classId===c.id))||0));
+  const classBars=state.classes.slice(0,4).map((c,i)=>{const a=weightedAvg(state.grades.filter(g=>g.classId===c.id));const pct=a===null?0:Math.round(a/20*100);const colors=['blue','green','purple','orange'];return `<div class="ref-bar-item"><b>${a===null?'—':a.toFixed(1)+' /20'}</b><i class="${colors[i%4]}" style="height:${Math.max(8,pct)}%"></i><span>${escapeHtml(c.name)}</span></div>`;}).join('');
+  const trendClasses=state.classes.slice(0,4).map((c,i)=>{const a=weightedAvg(state.grades.filter(g=>g.classId===c.id));const color=['#1677FF','#16B85A','#6B2BD9','#FF9F0A'][i%4];return `<span><i style="background:${color}"></i>${escapeHtml(c.name)}</span>`;}).join('');
+  const dueRows=allPending.slice(0,3).map(h=>`<div class="ref-list-row"><span class="ref-list-icon">▣</span><div><b>${escapeHtml(h.title)}</b><small>${escapeHtml(classLabel(h.classId))}</small></div><em class="${daysUntil(h.dueDate)<0?'danger':''}">${daysUntil(h.dueDate)<0?'En retard':fmtDateShort(h.dueDate)}</em></div>`).join('');
+  const reportRows=state.sessions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3).map(s=>`<div class="ref-list-row"><span class="ref-list-icon pdf">PDF</span><div><b>${escapeHtml(classLabel(s.classId))}</b><small>${escapeHtml(s.topic||'Séance')}</small></div><em>${fmtDateShort(s.date||today)}</em></div>`).join('');
+  let hero;
+  if(now){const c=getClass(now.classId);hero=`<div class="dashboard-hero-icon">◆</div><div><p class="hero-label">Séance en cours</p><h2>Bonjour, ${escapeHtml(getAppName().replace(/^Classe\s*·?\s*/i,'').trim()||'enseignant')} !</h2><p class="hero-note">Enseigner • Suivre • Réussir ensemble</p><div class="hero-session-line"><b>${escapeHtml(c?.name||'—')}</b><span>${escapeHtml(now.topic||'Séance')} · ${now.start}–${now.end}</span><button class="btn btn-primary btn-sm" id="heroSessionBtn">Ouvrir la séance</button></div></div>`;}
+  else {const c=next?getClass(next.classId):null;hero=`<div class="dashboard-hero-icon">◆</div><div><p class="hero-label">Aujourd’hui · ${fmtDateLong(today).replace(/^./,x=>x.toUpperCase())}</p><h2>Bonjour, enseignant !</h2><p class="hero-note">Enseigner • Suivre • Réussir ensemble</p><div class="hero-session-line"><b>${next?escapeHtml(c?.name||'Prochaine séance'):'Journée libre'}</b><span>${next?escapeHtml(next.topic||'Séance')+' · '+next.start+'–'+next.end:'Préparez vos prochains cours depuis votre espace de pilotage.'}</span></div></div>`;}
   el.innerHTML=`
-    <div class="hero">${hero}</div>
-    <div class="card quick-actions-card"><div class="card-head"><h3>Actions rapides</h3><small>Accès immédiat</small></div><div class="quick-grid">
-      <button class="quick-btn quick" id="qaPresence"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Appel</span></button>
-      <button class="quick-btn quick" id="qaDevoir"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Devoir</span></button>
-      <button class="quick-btn quick" id="qaNote"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m18.7 8-5.7 5.7-3.5-3.5L4 15.7"/></svg><span>Note</span></button>
-      <button class="quick-btn quick" id="qaEleve"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Élève</span></button>
-    </div></div>
-    <div class="metrics metric-grid">
-      <div class="metric blue"><div class="metric-icon">▣</div><b>${classCount}</b><span>Classes actives</span></div>
-      <div class="metric green"><div class="metric-icon">●</div><b>${totalStudents}</b><span>Élèves inscrits</span></div>
-      <div class="metric orange"><div class="metric-icon">◷</div><b>${avgAll!==null?avgAll.toFixed(1):'—'}</b><span>Moyenne générale</span></div>
-      <div class="metric purple"><div class="metric-icon">★</div><b>${pending}</b><span>Devoirs à faire</span></div>
-    </div>
-    <div class="ultrareview-card"><div class="ultrareview-head"><div><span class="eyebrow">UltraReview</span><h2>Revue pédagogique express</h2></div><button class="btn btn-ghost btn-sm" id="openUltraReview">Voir l’analyse</button></div><div class="ultrareview-grid"><div><strong>${state.attendance.length?Math.round(attendanceStats().rate||0)+'%':'—'}</strong><small>Présence globale</small></div><div><strong>${overdue.length}</strong><small>Devoirs en retard</small></div><div><strong>${suggestions.length}</strong><small>Points à surveiller</small></div></div></div>
-    ${suggestions.length?`<h2 class="section-title">À surveiller</h2>${suggestions.map(s=>`<div class="suggestion">${suggestionIcon(s.icon)}<div class="suggestion-text">${s.text}</div></div>`).join('')}`:''}
-    <h2 class="section-title">Programme du jour</h2>
-    ${slots.length?`<div class="card">${slots.map(s=>{const c=getClass(s.classId),isNow=now?.id===s.id;return `<div class="slot"><div class="slot-time">${s.start}</div><div class="slot-bar ${isNow?'is-now':''}"></div><div class="slot-body"><div class="cls">${escapeHtml(c?.name||'—')}</div><div class="topic">${escapeHtml(s.topic||'Sans thème')} · ${s.start}–${s.end}</div></div><button class="mini-action" data-att-slot="${s.id}" title="Faire l'appel" aria-label="Faire l'appel">✓</button></div>`;}).join('')}</div>`:`<div class="empty"><p>Pas de cours prévu aujourd'hui.</p></div>`}
-    ${(due.length||overdue.length)?`<h2 class="section-title">Devoirs à surveiller</h2><div class="card">${[...due,...overdue].slice(0,4).map(h=>`<div class="row"><div class="row-main"><div class="row-title">${escapeHtml(h.title)}</div><div class="row-sub">${escapeHtml(classLabel(h.classId))} · ${daysUntil(h.dueDate)<0?'en retard':"à rendre aujourd'hui"}</div></div><div class="row-end"><span class="chip ${daysUntil(h.dueDate)<0?'chip-rouge':'chip-ocre'}">${daysUntil(h.dueDate)<0?'Retard':'Auj.'}</span></div></div>`).join('')}</div>`:''}
-  `;
-  document.getElementById('qaPresence').onclick=()=>{haptic();openAttendanceSheet(now?.classId||state.classes[0]?.id,now?.id);};
-  document.getElementById('qaDevoir').onclick=()=>{haptic();openHomeworkForm();};
-  document.getElementById('qaNote').onclick=()=>{haptic();openGradeForm();};
-  document.getElementById('qaEleve').onclick=()=>{haptic();openStudentForm();};
-  document.getElementById('heroSessionBtn')?.addEventListener('click',()=>openSessionDetail(now.id));
-  document.getElementById('openUltraReview').onclick=()=>{haptic();document.querySelector('[data-tab="stats"]')?.click();};
-  document.querySelectorAll('[data-att-slot]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.attSlot);if(s)openAttendanceSheet(s.classId,s.id);});
+    <section class="reference-hero hero">${hero}<div class="hero-motto">« Une éducation de qualité,<br>un avenir meilleur. »</div></section>
+    <section class="dashboard-kpis">
+      <div class="ref-kpi kpi-blue"><span class="kpi-icon">♟</span><div><b>${classCount}</b><strong>Classes</strong><small>↑ actives</small></div><span class="kpi-arrow">→</span></div>
+      <div class="ref-kpi kpi-green"><span class="kpi-icon">♟</span><div><b>${totalStudents}</b><strong>Élèves</strong><small>↑ inscrits</small></div><span class="kpi-arrow">→</span></div>
+      <div class="ref-kpi kpi-purple"><span class="kpi-icon">▣</span><div><b>${state.schedule.length}</b><strong>Séances</strong><small>planning</small></div><span class="kpi-arrow">→</span></div>
+      <div class="ref-kpi kpi-orange"><span class="kpi-icon">▮</span><div><b>${avgAll===null?'—':avgAll.toFixed(1)+' /20'}</b><strong>Moyenne générale</strong><small>${at.rate===null?'À compléter':Math.round(at.rate)+'% présence'}</small></div><span class="kpi-arrow">→</span></div>
+    </section>
+    <section class="dashboard-grid reference-grid-top">
+      <div class="reference-card chart-card"><div class="reference-card-head"><h3>▥ &nbsp; Performances par classe</h3><span>Cette année →</span></div><div class="class-bars">${classBars||'<div class="ref-empty">Ajoutez des classes et des notes pour afficher les performances.</div>'}</div></div>
+      <div class="reference-card chart-card trend-card"><div class="reference-card-head"><h3>▰ &nbsp; Évolution des moyennes</h3><span>4 trimestres →</span></div><div class="trend-placeholder"><svg viewBox="0 0 520 170" preserveAspectRatio="none"><path d="M0 140 C80 125 85 100 160 112 S240 76 320 91 S410 65 520 40" fill="none" stroke="#1677FF" stroke-width="4"/><path d="M0 115 C80 90 110 120 160 75 S260 112 320 60 S410 90 520 55" fill="none" stroke="#16B85A" stroke-width="4"/><path d="M0 150 C100 130 130 120 190 125 S300 90 360 100 S430 80 520 70" fill="none" stroke="#6B2BD9" stroke-width="4"/></svg><div class="trend-axis"><span>S1</span><span>S2</span><span>S3</span><span>S4</span></div></div><div class="trend-legend">${trendClasses||'<span>Aucune classe</span>'}</div></div>
+      <div class="reference-card quick-reference"><div class="reference-card-head"><h3>⚡ &nbsp; Actions rapides</h3></div><div class="reference-quick-grid"><button id="qaEleve"><span>♟</span>Ajouter<br>un élève</button><button id="scheduleQuickBtn"><span>▣</span>Créer<br>une séance</button><button id="qaNote"><span>✎</span>Saisir<br>les notes</button><button id="reportQuickBtn"><span>▥</span>Voir<br>les rapports</button><button id="importQuickBtn"><span>＋</span>Importer<br>des données</button><button id="exportQuickBtn"><span>⇩</span>Exporter<br>les résultats</button></div></div>
+    </section>
+    <section class="dashboard-grid reference-grid-middle">
+      <div class="reference-card"><div class="reference-card-head purple-head"><h3>▣ &nbsp; Prochaines échéances</h3><button class="link" id="homeworkQuickBtn">Voir tout →</button></div>${dueRows||'<div class="ref-empty">Aucune échéance en attente.</div>'}</div>
+      <div class="reference-card attendance-reference"><div class="reference-card-head green-head"><h3>▥ &nbsp; Présences du jour</h3><span>Voir détail →</span></div><div class="attendance-ref-body"><div class="ref-donut" style="--rate:${at.rate===null?0:Math.round(at.rate)}%"><b>${at.rate===null?'—':Math.round(at.rate)+'%'}</b></div><div class="attendance-ref-legend"><span><i class="green"></i>Présents <b>${present}</b></span><span><i class="red"></i>Absents <b>${absent}</b></span><span><i class="orange"></i>Retards <b>${late}</b></span></div></div></div>
+      <div class="reference-card ultrareview-reference"><div><span class="eyebrow">UltraReview</span><h3>Entraînement intelligent<br>pour exceller aux examens</h3><button class="btn btn-primary" id="openUltraReview">Commencer ▶</button></div><div class="ur-orb">✦</div></div>
+    </section>
+    <section class="dashboard-grid reference-grid-bottom">
+      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▥ &nbsp; Statistiques globales</h3><span>Voir plus →</span></div><div class="mini-stat"><b>${at.rate===null?'—':Math.round(at.rate)+'%'}</b><small>Taux de présence</small></div></div>
+      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▤ &nbsp; Derniers rapports</h3><span>Voir tout →</span></div>${reportRows||'<div class="ref-empty">Les rapports seront disponibles après vos premières séances.</div>'}</div>
+      <div class="reference-card backup-reference"><div class="reference-card-head"><h3>☁ &nbsp; Sauvegarde & restauration</h3></div><p>Vos données restent sur cet appareil.</p><button class="btn btn-emerald" id="backupQuickBtn">Sauvegarder maintenant</button></div>
+    </section>
+    ${suggestions.length?`<section class="reference-alert"><b>À surveiller</b><span>${suggestions.length} signal(s) pédagogique(s) détecté(s)</span></section>`:''}`;
+  document.getElementById('qaPresence')?.addEventListener('click',()=>{haptic();openAttendanceSheet(now?.classId||state.classes[0]?.id,now?.id);});
+  document.getElementById('qaDevoir')?.addEventListener('click',()=>{haptic();openHomeworkForm();});
+  document.getElementById('qaNote')?.addEventListener('click',()=>{haptic();openGradeForm();});
+  document.getElementById('qaEleve')?.addEventListener('click',()=>{haptic();openStudentForm();});
+  document.getElementById('scheduleQuickBtn')?.addEventListener('click',()=>openSlotForm(null,state.scheduleDayIndex));
+  document.getElementById('reportQuickBtn')?.addEventListener('click',openReportChooser);
+  document.getElementById('importQuickBtn')?.addEventListener('click',()=>document.getElementById('importFileInput').click());
+  document.getElementById('exportQuickBtn')?.addEventListener('click',exportData);
+  document.getElementById('backupQuickBtn')?.addEventListener('click',exportData);
+  document.getElementById('homeworkQuickBtn')?.addEventListener('click',()=>document.querySelector('.tab[data-tab="homework"]')?.click());
+  document.getElementById('heroSessionBtn')?.addEventListener('click',()=>now&&openSessionDetail(now.id));
+  document.getElementById('openUltraReview')?.addEventListener('click',()=>{haptic();document.querySelector('.tab[data-tab="stats"]')?.click();});
 }
 
 function renderStudents(){
