@@ -821,6 +821,7 @@
   .sheet-overlay{background:rgba(8,35,50,.46);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);}
   .sheet{border:1px solid rgba(255,255,255,.82);border-radius:28px 28px 0 0;background:rgba(247,255,255,.95);box-shadow:0 -18px 54px rgba(8,55,70,.24);}
   .toast{background:rgba(16,42,67,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+  .topbar-head{display:flex;align-items:center;gap:20px;min-width:0}.global-search{display:flex;align-items:center;gap:10px;flex:1;max-width:640px;margin-left:clamp(10px,3vw,42px);padding:0 18px;height:46px;border-radius:999px;background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.92);color:#245A7A;box-shadow:inset 0 1px 0 #fff,0 8px 20px rgba(16,42,67,.08);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}.global-search svg{width:20px;height:20px;flex:0 0 auto}.global-search input{width:100%;border:0;outline:0;background:transparent;color:#102A43;font-size:13px}.global-search input::placeholder{color:#617B8C}
   @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.tabbar{background:rgba(247,255,255,.98)}.quick-btn,.feature-btn,.topbar-action{background:#F7FFFF;}}
   @media(min-width:760px){
     #app{padding-bottom:20px;}
@@ -835,6 +836,17 @@
     .tab span{font-size:12px;}
     .fab{bottom:30px;}
   }
+  @media(min-width:1000px){
+    #app{margin-left:246px;max-width:calc(100% - 246px);}
+    .tabbar{left:0;top:0;bottom:0;transform:none;width:246px;height:100vh;justify-content:flex-start;align-items:stretch;padding:24px 14px;border:0;border-radius:0;background:linear-gradient(180deg,#07142F 0%,#0B1E4A 55%,#102F67 100%);box-shadow:12px 0 34px rgba(7,20,47,.2);}
+    .tabbar:before{content:'Classe\\A UltraReview';white-space:pre;display:block;padding:8px 12px 26px;color:#fff;font-size:21px;line-height:1.05;font-weight:900;letter-spacing:-.04em;border-bottom:1px solid rgba(255,255,255,.14);margin-bottom:18px;text-shadow:0 4px 18px rgba(30,151,255,.4);}
+    .side-profile{display:flex;align-items:center;gap:10px;margin:0 4px 18px;padding:12px;border-radius:16px;background:rgba(255,255,255,.08);color:#fff}.side-avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#fff,#BBD5FF);color:#0B1E4A;font-weight:900}.side-profile strong{display:block;font-size:13px}.side-profile small{display:block;color:#B9C9E8;margin-top:2px}.side-profile span{display:block;color:#65E0A5;font-size:10px;margin-top:5px}
+    .tab{min-height:52px;justify-content:flex-start;gap:13px;padding:10px 14px;border-radius:14px;color:#D6E3FF;font-weight:750;font-size:13px;text-align:left;}
+    .tab svg{width:23px;height:23px;stroke-width:2.1;}
+    .tab.active{color:#fff;background:linear-gradient(135deg,#1677FF,#13B8D4);box-shadow:0 8px 20px rgba(22,119,255,.28),inset 0 1px 0 rgba(255,255,255,.25);}
+    .topbar{border-radius:0 0 22px 22px;}
+    .view{padding-left:clamp(24px,3vw,56px);padding-right:clamp(24px,3vw,56px);}
+  }
   @media(min-width:1100px){.view{padding-left:56px;padding-right:56px}.topbar{padding-left:56px;padding-right:56px;}}
 
 </style>
@@ -844,7 +856,7 @@
 
   <!-- TOP BAR -->
   <div class="topbar">
-    <div class="brandline"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><rect x="7" y="9" width="15" height="27" rx="4" fill="currentColor"/><rect x="26" y="9" width="15" height="27" rx="4" fill="currentColor"/><path d="M24 10v25" stroke="#1E2A2F" stroke-width="3"/><path d="m30 28 4 4 8-10" stroke="#4D8464" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><p class="eyebrow" id="topbarEyebrow">Classe · Gestion de classe</p></div>
+    <div class="topbar-head"><div class="brandline"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><rect x="7" y="9" width="15" height="27" rx="4" fill="currentColor"/><rect x="26" y="9" width="15" height="27" rx="4" fill="currentColor"/><path d="M24 10v25" stroke="#1E2A2F" stroke-width="3"/><path d="m30 28 4 4 8-10" stroke="#4D8464" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><p class="eyebrow" id="topbarEyebrow">Classe · Gestion de classe</p></div><label class="global-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="globalSearch" type="search" placeholder="Rechercher une classe, un élève…" aria-label="Rechercher une classe ou un élève"></label></div>
     <h1 id="topbarTitle">Aujourd'hui</h1>
     <p class="sub" id="topbarSub"></p>
     <div class="topbar-actions">
@@ -880,6 +892,7 @@
 
   <!-- TAB BAR -->
   <div class="tabbar">
+    <div class="side-profile"><div class="side-avatar">YM</div><div><strong>Yves Marius</strong><small>Enseignant</small><span>● En ligne</span></div></div>
     <button class="tab active" data-tab="today">
       <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
       <span>Aujourd'hui</span>

@@ -747,6 +747,7 @@ async function lockApp(){const hash=localStorage.getItem('classe_pin_hash');if(!
 function renderTopbar(){
   const el=document.getElementById('topbarTitle'),sub=document.getElementById('topbarSub'),ey=document.getElementById('topbarEyebrow');
   ey.textContent=getAppName();
+  const globalSearch=document.getElementById('globalSearch'); if(globalSearch) globalSearch.value=state.studentsSearch||'';
   const titles={today:"Aujourd'hui",students:'Élèves',schedule:'Planning',homework:'Devoirs',grades:'Notes',stats:'Statistiques'};el.textContent=titles[state.currentTab]||'Classe';sub.textContent=state.currentTab==='today'?fmtDateLong(todayISO()):'';
 }
 function renderAll(){renderTopbar();renderToday();renderStudents();renderSchedule();renderHomework();renderGrades();renderStats();updateFab();}
@@ -758,6 +759,7 @@ function setupTabs(){
     renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
+  document.getElementById('globalSearch')?.addEventListener('input',e=>{state.studentsSearch=e.target.value.trim();const tab=document.querySelector('.tab[data-tab="students"]');if(state.currentTab!=='students'){tab?.click();}else renderStudents();});
   document.getElementById('topbarInsights').onclick=()=>{haptic();
     const tab=document.querySelector('.tab[data-tab="stats"]');
     if(tab) document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
