@@ -773,6 +773,7 @@ function setupTabs(){
     renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
+  document.getElementById('sidebarToggle')?.addEventListener('click',()=>{document.body.classList.toggle('sidebar-collapsed');});
   document.getElementById('globalSearch')?.addEventListener('input',e=>{state.studentsSearch=e.target.value.trim();const tab=document.querySelector('.tab[data-tab="students"]');if(state.currentTab!=='students'){tab?.click();}else renderStudents();});
   document.getElementById('topbarInsights').onclick=()=>{haptic();
     const tab=document.querySelector('.tab[data-tab="stats"]');
