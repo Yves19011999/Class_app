@@ -23,4 +23,4 @@ Le dépôt contient l’application PWA offline-first, le projet Capacitor gén�
 
 - Nom : Classe
 - Application ID : `com.classe.gestion`
-- Version : 4.9.0
+- Version : 5.0.0

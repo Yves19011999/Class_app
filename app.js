@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 3;
-const APP_VERSION = '4.9.0';
+const APP_VERSION = '5.0.0';
 let db = null;
 
 const STORES = {
@@ -230,6 +230,10 @@ function computeSuggestions(){
 function suggestionIcon(name){
   const p={clock:'<path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/>',alert:'<path d="M12 9v4M12 17h.01"/><path d="m10.3 3.9-8.3 14a1.5 1.5 0 0 0 1.3 2.3h17.4A1.5 1.5 0 0 0 22 18L13.7 3.9a1.5 1.5 0 0 0-2.6 0Z"/>',note:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>'};
   return `<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${p[name]||p.info}</svg>`;
+}
+function featureIcon(name){
+  const paths={grade:'<path d="M4 19V5M4 19h16M7 15l3-4 3 2 4-6"/>',report:'<path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 14h6M9 18h6"/>',import:'<path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>'};
+  return `<span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.report}</svg></span>`;
 }
 
 function renderToday(){
@@ -604,7 +608,7 @@ function renderGrades(){
   const cid=state.gradesClassFilter,cls=getClass(cid),grades=state.grades.filter(g=>g.classId===cid).sort((a,b)=>b.date.localeCompare(a.date)),classAvg=weightedAvg(grades);
   el.innerHTML=`<div class="day-tabs" id="gradeClassTabs">${state.classes.map(c=>`<button class="day-tab ${cid===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)}</button>`).join('')}</div>${cid?`
     <div class="stat-grid"><div class="stat-box"><div class="v">${classAvg!==null?classAvg.toFixed(1):'—'}</div><div class="l">Moyenne pondérée</div></div><div class="stat-box"><div class="v">${grades.length}</div><div class="l">Notes</div></div><div class="stat-box"><div class="v">${studentsOf(cid).length}</div><div class="l">Élèves</div></div></div>
-    <div class="feature-grid"><button class="feature-btn" id="bulkGradeBtn">📝 Nouvelle évaluation<small>Barème, coefficient et saisie collective</small></button><button class="feature-btn" id="gradeStatsBtn">📊 Analyse<small>Distribution & progression</small></button></div>
+    <div class="feature-grid"><button class="feature-btn has-icon" id="bulkGradeBtn">${featureIcon('grade')}<span class="feature-copy">Nouvelle évaluation<small>Barème, coefficient et saisie collective</small></span></button><button class="feature-btn has-icon" id="gradeStatsBtn">${featureIcon('report')}<span class="feature-copy">Analyse des résultats<small>Distribution et progression</small></span></button></div>
     <div class="grade-toolbar"><span class="muted">Coefficient intégré · tapote une note pour la modifier</span><button class="btn btn-sm btn-ghost" id="gradeExportCsv">CSV</button></div>
     ${grades.length?`<div class="card">${grades.slice(0,40).map(g=>{const s=state.students.find(x=>x.id===g.studentId);return `<div class="row clickable" data-edit-grade="${g.id}"><div class="avatar">${s?initials(s.name):'?'}</div><div class="row-main"><div class="row-title">${escapeHtml(s?.name||'Élève supprimé')}</div><div class="row-sub">${escapeHtml(g.label)} · ${fmtDateShort(g.date)} · coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune note pour ${escapeHtml(cls.name)}.</p><button class="btn btn-primary empty-action" id="emptyAddGrade">Ajouter une note</button></div>`}`:'<div class="empty"><p>Crée d’abord une classe.</p></div>'}`;
   document.querySelectorAll('#gradeClassTabs .day-tab').forEach(b=>b.onclick=()=>{state.gradesClassFilter=b.dataset.cls;renderGrades();});
@@ -656,7 +660,7 @@ function renderStats(){
   const classCards=state.classes.map(c=>{const gs=grades.filter(g=>g.classId===c.id),a=weightedAvg(gs),st=studentsOf(c.id),att=attendanceStats(c.id);return {c,a,st,att,gs};}).sort((a,b)=>(b.a??-1)-(a.a??-1));
   const max=Math.max(1,...classCards.map(x=>x.a||0));
   el.innerHTML=`<div class="settings-brand"><div class="logo"><span style="font-size:24px">◒</span></div><div><strong>UltraReview</strong><small>Revue pédagogique et signaux utiles</small></div></div><div class="insight-grid"><div class="insight-card"><div class="big">${total}</div><div class="label">Élèves</div></div><div class="insight-card"><div class="big">${classes}</div><div class="label">Classes</div></div><div class="insight-card"><div class="big">${avgAll!==null?avgAll.toFixed(1):'—'}</div><div class="label">Moyenne pondérée</div></div><div class="insight-card"><div class="big">${at.rate!==null?Math.round(at.rate)+'%':'—'}</div><div class="label">Présence globale</div></div></div>
-    <div class="feature-grid"><button class="feature-btn" id="printReportBtn">📄 Rapport de classe<small>Imprimer / PDF</small></button><button class="feature-btn" id="importStudentsBtn">📥 Importer élèves<small>CSV / Excel export</small></button></div>
+    <div class="feature-grid"><button class="feature-btn has-icon" id="printReportBtn">${featureIcon('report')}<span class="feature-copy">Rapports de classe<small>Imprimer ou enregistrer en PDF</small></span></button><button class="feature-btn has-icon" id="importStudentsBtn">${featureIcon('import')}<span class="feature-copy">Importer des élèves<small>Charger un fichier CSV</small></span></button></div>
     <h2 class="section-title">Vue par classe</h2>
     ${classCards.length?`<div class="card">${classCards.map(x=>`<div class="rank-row"><div class="avatar">${escapeHtml((x.c.name||'?').slice(0,2).toUpperCase())}</div><div class="row-main"><div class="rank-name">${escapeHtml(x.c.name)}</div><div class="muted">${x.st.length} élève(s) · ${x.att.rate!==null?Math.round(x.att.rate)+'% présence':'pas d’appel'}</div><div class="progress"><i style="width:${Math.min(100,((x.a||0)/20)*100)}%"></i></div></div><span class="grade-pill ${x.a!==null?gradeClass(x.a):'grade-mid'}">${x.a!==null?x.a.toFixed(1):'—'}</span></div>`).join('')}</div>`:'<div class="empty"><p>Crée une classe pour commencer.</p></div>'}
     <h2 class="section-title">Élèves à accompagner</h2>${ultraReviewRisks().length?`<div class="card">${ultraReviewRisks().map(x=>`<div class="rank-row"><div class="avatar" style="background:var(--terre)">${escapeHtml(initials(x.s.name))}</div><div class="row-main"><div class="rank-name">${escapeHtml(x.s.name)}</div><div class="muted">${x.avgStudent!==null?'Moyenne '+x.avgStudent.toFixed(1):'Pas de moyenne'} · ${x.abs} absence(s) · ${x.late} devoir(s) en retard</div></div><span class="chip chip-rouge">À suivre</span></div>`).join('')}</div>`:'<div class="status-banner success">Aucun profil prioritaire détecté.</div>'}
@@ -782,7 +786,7 @@ function renderTopbar(){
 function renderAll(){renderTopbar();renderToday();renderStudents();renderSchedule();renderHomework();renderGrades();renderStats();updateFab();}
 function setupTabs(){
   document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{haptic();
-    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
+    document.querySelectorAll('.tab').forEach(t=>{const active=t===tab;t.classList.toggle('active',active);if(active)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current');});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==`view-${tab.dataset.tab}`));
     state.currentTab=tab.dataset.tab;
     renderTopbar(); updateFab(); window.scrollTo(0,0);
@@ -790,7 +794,7 @@ function setupTabs(){
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
   document.getElementById('topbarInsights').onclick=()=>{haptic();
     const tab=document.querySelector('.tab[data-tab="stats"]');
-    if(tab) document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
+    if(tab) document.querySelectorAll('.tab').forEach(t=>{const active=t===tab;t.classList.toggle('active',active);if(active)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current');});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats'));
     state.currentTab='stats'; renderTopbar(); updateFab(); renderStats(); window.scrollTo(0,0);
   };
@@ -803,7 +807,7 @@ function openHashRoute(){
   const allowed=['today','students','schedule','homework','grades','stats'];
   if(!allowed.includes(key)) return;
   const tab=document.querySelector(`.tab[data-tab="${key}"]`);
-  if(key==='stats'){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats')); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); state.currentTab='stats'; renderTopbar(); renderStats(); return; }
+  if(key==='stats'){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!=='view-stats')); document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('active');t.removeAttribute('aria-current');}); state.currentTab='stats'; renderTopbar(); renderStats(); return; }
   if(tab){ tab.click(); }
 }
 

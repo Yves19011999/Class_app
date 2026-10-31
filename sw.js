@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classe-cache-v4-9';
+const CACHE_NAME = 'classe-cache-v5-0';
 const CACHE_PREFIX = 'classe-cache-';
 const CORE_ASSETS = ['./','./index.html','./app.js','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 

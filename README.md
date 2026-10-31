@@ -1,8 +1,10 @@
-# Classe — Gestion de classe · v4.9.0
+# Classe — Gestion de classe · v5.0.0
 
 **Classe** est un carnet de bord pédagogique mobile, offline-first, installable comme PWA et prêt à être empaqueté en application Android.
 
 ## Fonctionnalités
+
+- ✨ Interface 5.0 : navigation adaptative, boutons en verre givré, pictogrammes fonctionnels et animations respectueuses des préférences de mouvement
 
 - 🏠 Tableau de bord « Aujourd’hui » avec prochaine séance et alertes
 - 👨‍🎓 Élèves, recherche, filtres et fiches individuelles
@@ -59,4 +61,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.9.0
+5.0.0
