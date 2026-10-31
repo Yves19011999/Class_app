@@ -4,12 +4,13 @@
    ========================================================= */
 
 const DB_NAME = 'classe_db';
-const DB_VERSION = 3;
-const APP_VERSION = '4.9.0';
+const DB_VERSION = 4;
+const APP_VERSION = '4.9.3';
 let db = null;
 
 const STORES = {
   classes:   { keyPath: 'id' },
+  subjects:  { keyPath: 'id', indexes: [['classId','classId']] },
   students:  { keyPath: 'id', indexes: [['classId','classId']] },
   schedule:  { keyPath: 'id', indexes: [['day','day'],['classId','classId']] },
   sessions:  { keyPath: 'id', indexes: [['date','date'],['classId','classId'],['scheduleId','scheduleId']] },
@@ -24,7 +25,7 @@ const DAYS_FR_SHORT = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 const DAYS_ORDER = [1,2,3,4,5,6];
 
 const state = {
-  classes: [], students: [], schedule: [], homework: [], grades: [],
+  classes: [], subjects: [], students: [], schedule: [], homework: [], grades: [],
   attendance: [], sessions: [], currentTab: 'today', scheduleDayIndex: 1,
   gradesClassFilter: null, gradesSubjectFilter: 'all', studentsSearch: '',
   studentsClassFilter: 'all', homeworkFilter: 'pending'
@@ -106,6 +107,10 @@ function daysUntil(iso){
 }
 function initials(name){ return name.trim().split(/\s+/).slice(0,2).map(s=>s[0]?.toUpperCase()||'').join(''); }
 function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function safePhotoUrl(value){
+  const photo=String(value||'');
+  return /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/]+=*$/i.test(photo) && photo.length<=1800000 ? photo : '';
+}
 function getClass(id){ return state.classes.find(c=>c.id===id); }
 function classLabel(id){ return getClass(id)?.name || '—'; }
 function studentsOf(classId){ return state.students.filter(s=>s.classId===classId).sort((a,b)=>a.name.localeCompare(b.name,'fr')); }
@@ -138,10 +143,25 @@ async function clearStore(name){
   return new Promise((resolve,reject)=>{ const r=tx(name,'readwrite').clear(); r.onsuccess=resolve; r.onerror=()=>reject(r.error); });
 }
 async function loadAll(){
-  const [classes,students,schedule,homework,grades,attendance,sessions,settings]=await Promise.all([
-    dbGetAll('classes'),dbGetAll('students'),dbGetAll('schedule'),dbGetAll('homework'),dbGetAll('grades'),dbGetAll('attendance'),dbGetAll('sessions'),dbGetAll('settings')
+  const [classes,subjects,students,schedule,homework,grades,attendance,sessions,settings]=await Promise.all([
+    dbGetAll('classes'),dbGetAll('subjects'),dbGetAll('students'),dbGetAll('schedule'),dbGetAll('homework'),dbGetAll('grades'),dbGetAll('attendance'),dbGetAll('sessions'),dbGetAll('settings')
   ]);
-  Object.assign(state,{classes,students,schedule,homework,grades,attendance,sessions,settings});
+  Object.assign(state,{classes,subjects,students,schedule,homework,grades,attendance,sessions,settings});
+}
+
+async function migrateLegacySubjects(){
+  for(const cls of state.classes){
+    let subjects=state.subjects.filter(s=>s.classId===cls.id);
+    if(!subjects.length){
+      const subject={id:uid(),classId:cls.id,name:(cls.subject||'Matière générale').trim(),coefficient:1};
+      await dbPut('subjects',subject); state.subjects.push(subject); subjects=[subject];
+    }
+    const fallback=subjects[0];
+    for(const grade of state.grades.filter(g=>g.classId===cls.id&&!g.subjectId)){
+      grade.subjectId=fallback.id; await dbPut('grades',grade);
+    }
+  }
+  await loadAll();
 }
 
 async function migrateLegacyAttendance(){
@@ -182,13 +202,6 @@ function openSheet(html){ document.getElementById('sheet').innerHTML='<div class
 function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); }
 document.getElementById('sheetOverlay').addEventListener('click',e=>{ if(e.target.id==='sheetOverlay') closeSheet(); });
 
-function renderAll(){ renderTopbar(); renderToday(); renderStudents(); renderSchedule(); renderHomework(); renderGrades(); updateFab(); }
-function renderTopbar(){
-  const titles={today:"Aujourd'hui",students:'Élèves',schedule:'Emploi du temps',homework:'Devoirs & exercices',grades:'Notes'};
-  document.getElementById('topbarTitle').textContent=titles[state.currentTab]||'Classe';
-  document.getElementById('topbarSub').textContent=state.currentTab==='today'?fmtDateLong(todayISO()):'';
-  document.getElementById('topbarEyebrow').textContent=getAppName();
-}
 function getAppName(){ return localStorage.getItem('classe_app_name') || 'Classe · Gestion de classe'; }
 
 function currentSlot(){
@@ -197,11 +210,19 @@ function currentSlot(){
 }
 function nextSlot(){
   const now=new Date(), dow=now.getDay(), hm=now.getHours()*60+now.getMinutes();
-  return state.schedule.filter(s=>s.day===dow).sort((a,b)=>a.start.localeCompare(b.start)).find(s=>toMin(s.start)>hm)||null;
+  for(let offset=0;offset<7;offset++){
+    const day=(dow+offset)%7;
+    const min=offset===0?hm:-1;
+    const slot=state.schedule.filter(s=>s.day===day).sort((a,b)=>a.start.localeCompare(b.start)).find(s=>toMin(s.start)>min);
+    if(slot) return slot;
+  }
+  return null;
 }
 function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
 function minutesUntilSlot(slot){
-  const now=new Date(), target=new Date(now); const [h,m]=slot.start.split(':').map(Number); target.setHours(h,m,0,0);
+  const now=new Date(), target=new Date(now); const [h,m]=slot.start.split(':').map(Number);
+  const offset=(Number(slot.day)-now.getDay()+7)%7;
+  target.setDate(target.getDate()+offset); target.setHours(h,m,0,0);
   let diff=Math.round((target-now)/60000); if(diff<0) diff=0;
   return diff<60?`${diff} min`:`${Math.floor(diff/60)} h ${diff%60?diff%60+' min':''}`.trim();
 }
@@ -239,11 +260,14 @@ function renderToday(){
   const allPending=state.homework.filter(h=>!h.done).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
   const overdue=allPending.filter(h=>daysUntil(h.dueDate)<0);
   const suggestions=computeSuggestions(), totalStudents=state.students.length;
-  const classCount=state.classes.length, avgAll=weightedAvg(state.grades), at=attendanceStats();
-  const present=state.attendance.filter(a=>a.status==='p').length, absent=state.attendance.filter(a=>a.status==='a').length, late=state.attendance.filter(a=>a.status==='r').length;
-  const maxClassAvg=Math.max(1,...state.classes.map(c=>weightedAvg(state.grades.filter(g=>g.classId===c.id))||0));
-  const classBars=state.classes.slice(0,4).map((c,i)=>{const a=weightedAvg(state.grades.filter(g=>g.classId===c.id));const pct=a===null?0:Math.round(a/20*100);const colors=['blue','green','purple','orange'];return `<div class="ref-bar-item"><b>${a===null?'—':a.toFixed(1)+' /20'}</b><i class="${colors[i%4]}" style="height:${Math.max(8,pct)}%"></i><span>${escapeHtml(c.name)}</span></div>`;}).join('');
-  const trendClasses=state.classes.slice(0,4).map((c,i)=>{const a=weightedAvg(state.grades.filter(g=>g.classId===c.id));const color=['#1677FF','#16B85A','#6B2BD9','#FF9F0A'][i%4];return `<span><i style="background:${color}"></i>${escapeHtml(c.name)}</span>`;}).join('');
+  const classCount=state.classes.length, avgAll=weightedSubjectAvg(state.grades), at=attendanceStatsForDate(), globalAt=attendanceStats();
+  const todayAttendance=state.attendance.filter(a=>a.date===today);
+  const present=todayAttendance.filter(a=>a.status==='p').length, absent=todayAttendance.filter(a=>a.status==='a').length, late=todayAttendance.filter(a=>a.status==='r').length;
+  const classBars=state.classes.slice(0,4).map((c,i)=>{const a=weightedSubjectAvg(state.grades.filter(g=>g.classId===c.id));const pct=a===null?0:Math.round(a/20*100);const colors=['blue','green','purple','orange'];return `<div class="ref-bar-item"><b>${a===null?'—':a.toFixed(1)+' /20'}</b><i class="${colors[i%4]}" style="height:${Math.max(8,pct)}%"></i><span>${escapeHtml(c.name)}</span></div>`;}).join('');
+  const trendClasses=state.classes.slice(0,4).map((c,i)=>{const a=weightedSubjectAvg(state.grades.filter(g=>g.classId===c.id));const color=['#1677FF','#16B85A','#6B2BD9','#FF9F0A'][i%4];return `<span><i style="background:${color}"></i>${escapeHtml(c.name)}</span>`;}).join('');
+  const trendPeriods=[0,1,2,3].map(q=>weightedSubjectAvg(state.grades.filter(g=>{const month=new Date(`${g.date}T00:00:00`).getMonth();return Math.floor(month/3)===q;})));
+  const trendHasData=trendPeriods.some(v=>v!==null);
+  const trendGraph=trendHasData?`<div class="trend-bars">${trendPeriods.map((v,i)=>`<div class="trend-bar-item"><b>${v===null?'—':v.toFixed(1)}</b><i style="height:${v===null?4:Math.max(6,Math.round(v/20*100))}%"></i><span>T${i+1}</span></div>`).join('')}</div>`:'<div class="ref-empty">Ajoutez des notes datées pour afficher l’évolution trimestrielle.</div>';
   const dueRows=allPending.slice(0,3).map(h=>`<div class="ref-list-row"><span class="ref-list-icon">▣</span><div><b>${escapeHtml(h.title)}</b><small>${escapeHtml(classLabel(h.classId))}</small></div><em class="${daysUntil(h.dueDate)<0?'danger':''}">${daysUntil(h.dueDate)<0?'En retard':fmtDateShort(h.dueDate)}</em></div>`).join('');
   const reportRows=state.sessions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3).map(s=>`<div class="ref-list-row"><span class="ref-list-icon pdf">PDF</span><div><b>${escapeHtml(classLabel(s.classId))}</b><small>${escapeHtml(s.topic||'Séance')}</small></div><em>${fmtDateShort(s.date||today)}</em></div>`).join('');
   let hero;
@@ -252,15 +276,15 @@ function renderToday(){
   el.innerHTML=`
     <section class="reference-hero hero">${hero}<div class="hero-motto">« Une éducation de qualité,<br>un avenir meilleur. »</div></section>
     <section class="dashboard-kpis">
-      <button class="ref-kpi kpi-blue" data-dashboard-tab="students" aria-label="Ouvrir les classes et les élèves"><span class="kpi-icon">♟</span><div><b>${classCount}</b><strong>Classes</strong><small>↑ actives</small></div><span class="kpi-arrow">→</span></button>
-      <button class="ref-kpi kpi-green" data-dashboard-tab="students" aria-label="Ouvrir les élèves"><span class="kpi-icon">♟</span><div><b>${totalStudents}</b><strong>Élèves</strong><small>↑ inscrits</small></div><span class="kpi-arrow">→</span></button>
+      <button class="ref-kpi kpi-blue" data-dashboard-tab="students" aria-label="Ouvrir les classes et les élèves"><span class="kpi-icon">♟</span><div><b>${classCount}</b><strong>Classes</strong><small>enregistrées</small></div><span class="kpi-arrow">→</span></button>
+      <button class="ref-kpi kpi-green" data-dashboard-tab="students" aria-label="Ouvrir les élèves"><span class="kpi-icon">♟</span><div><b>${totalStudents}</b><strong>Élèves</strong><small>inscrits</small></div><span class="kpi-arrow">→</span></button>
       <button class="ref-kpi kpi-purple" data-dashboard-tab="schedule" aria-label="Ouvrir le planning des séances"><span class="kpi-icon">▣</span><div><b>${state.schedule.length}</b><strong>Séances</strong><small>planning</small></div><span class="kpi-arrow">→</span></button>
       <button class="ref-kpi kpi-orange" data-dashboard-tab="stats" aria-label="Ouvrir les statistiques et les notes"><span class="kpi-icon">▮</span><div><b>${avgAll===null?'—':avgAll.toFixed(1)+' /20'}</b><strong>Moyenne générale</strong><small>${at.rate===null?'À compléter':Math.round(at.rate)+'% présence'}</small></div><span class="kpi-arrow">→</span></button>
     </section>
     <section class="dashboard-grid reference-grid-top">
       <div class="reference-card chart-card"><div class="reference-card-head"><h3>▥ &nbsp; Performances par classe</h3><span>Cette année →</span></div><div class="class-bars">${classBars||'<div class="ref-empty">Ajoutez des classes et des notes pour afficher les performances.</div>'}</div></div>
-      <div class="reference-card chart-card trend-card"><div class="reference-card-head"><h3>▰ &nbsp; Évolution des moyennes</h3><span>4 trimestres →</span></div><div class="trend-placeholder"><svg viewBox="0 0 520 170" preserveAspectRatio="none"><path d="M0 140 C80 125 85 100 160 112 S240 76 320 91 S410 65 520 40" fill="none" stroke="#1677FF" stroke-width="4"/><path d="M0 115 C80 90 110 120 160 75 S260 112 320 60 S410 90 520 55" fill="none" stroke="#16B85A" stroke-width="4"/><path d="M0 150 C100 130 130 120 190 125 S300 90 360 100 S430 80 520 70" fill="none" stroke="#6B2BD9" stroke-width="4"/></svg><div class="trend-axis"><span>S1</span><span>S2</span><span>S3</span><span>S4</span></div></div><div class="trend-legend">${trendClasses||'<span>Aucune classe</span>'}</div></div>
-      <div class="reference-card quick-reference"><div class="reference-card-head"><h3>⚡ &nbsp; Actions rapides</h3></div><div class="reference-quick-grid"><button id="qaEleve"><span>♟</span>Ajouter<br>un élève</button><button id="scheduleQuickBtn"><span>▣</span>Créer<br>une séance</button><button id="qaNote"><span>✎</span>Saisir<br>les notes</button><button id="reportQuickBtn"><span>▥</span>Voir<br>les rapports</button><button id="importQuickBtn"><span>＋</span>Importer<br>des données</button><button id="exportQuickBtn"><span>⇩</span>Exporter<br>les résultats</button></div></div>
+      <div class="reference-card chart-card trend-card"><div class="reference-card-head"><h3>▰ &nbsp; Évolution des moyennes</h3><span>4 trimestres →</span></div><div class="trend-placeholder">${trendGraph}</div><div class="trend-legend">${trendClasses||'<span>Aucune classe</span>'}</div></div>
+      <div class="reference-card quick-reference"><div class="reference-card-head"><h3>⚡ &nbsp; Actions rapides</h3></div><div class="reference-quick-grid"><button id="qaPresence"><span>✓</span>Faire<br>l’appel</button><button id="qaEleve"><span>♟</span>Ajouter<br>un élève</button><button id="scheduleQuickBtn"><span>▣</span>Créer<br>une séance</button><button id="qaNote"><span>✎</span>Saisir<br>les notes</button><button id="reportQuickBtn"><span>▥</span>Voir<br>les rapports</button><button id="importQuickBtn"><span>＋</span>Importer<br>des données</button><button id="exportQuickBtn"><span>⇩</span>Exporter<br>les résultats</button></div></div>
     </section>
     <section class="dashboard-grid reference-grid-middle">
       <div class="reference-card"><div class="reference-card-head purple-head"><h3>▣ &nbsp; Prochaines échéances</h3><button class="link" id="homeworkQuickBtn">Voir tout →</button></div>${dueRows||'<div class="ref-empty">Aucune échéance en attente.</div>'}</div>
@@ -268,8 +292,8 @@ function renderToday(){
       <div class="reference-card ultrareview-reference"><div><span class="eyebrow">UltraReview</span><h3>Entraînement intelligent<br>pour exceller aux examens</h3><button class="btn btn-primary" id="openUltraReview">Commencer ▶</button></div><div class="ur-orb">✦</div></div>
     </section>
     <section class="dashboard-grid reference-grid-bottom">
-      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▥ &nbsp; Statistiques globales</h3><span>Voir plus →</span></div><div class="mini-stat"><b>${at.rate===null?'—':Math.round(at.rate)+'%'}</b><small>Taux de présence</small></div></div>
-      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▤ &nbsp; Derniers rapports</h3><span>Voir tout →</span></div>${reportRows||'<div class="ref-empty">Les rapports seront disponibles après vos premières séances.</div>'}</div>
+      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▥ &nbsp; Statistiques globales</h3><span>Voir plus →</span></div><div class="mini-stat"><b>${globalAt.rate===null?'—':Math.round(globalAt.rate)+'%'}</b><small>Taux de présence cumulé</small></div></div>
+      <div class="reference-card mini-reference"><div class="reference-card-head"><h3>▤ &nbsp; Dernières séances</h3><span>Voir le planning →</span></div>${reportRows||'<div class="ref-empty">Aucune séance enregistrée.</div>'}</div>
       <div class="reference-card backup-reference"><div class="reference-card-head"><h3>☁ &nbsp; Sauvegarde & restauration</h3></div><p>Vos données restent sur cet appareil.</p><button class="btn btn-emerald" id="backupQuickBtn">Sauvegarder maintenant</button></div>
     </section>
     ${suggestions.length?`<section class="reference-alert"><b>À surveiller</b><span>${suggestions.length} signal(s) pédagogique(s) détecté(s)</span></section>`:''}`;
@@ -290,12 +314,17 @@ function renderToday(){
 
 function renderStudents(){
   const el=document.getElementById('view-students');
-  const filtered=state.students.filter(s=>(state.studentsClassFilter==='all'||s.classId===state.studentsClassFilter)&&(!state.studentsSearch||s.name.toLowerCase().includes(state.studentsSearch.toLowerCase()))).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  const query=state.studentsSearch.toLowerCase();
+  const filtered=state.students.filter(s=>{
+    const cls=getClass(s.classId);
+    const matches=!query||s.name.toLowerCase().includes(query)||cls?.name?.toLowerCase().includes(query)||cls?.subject?.toLowerCase().includes(query);
+    return (state.studentsClassFilter==='all'||s.classId===state.studentsClassFilter)&&matches;
+  }).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   el.innerHTML=`
     <div class="class-cta"><div><span class="class-cta-kicker">Organisation</span><strong>Mes classes</strong><p>Crée une classe pour commencer à ajouter tes élèves, notes et présences.</p></div><button class="btn btn-primary" id="visibleAddClassBtn">+ Créer une classe</button></div>
     <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="studentSearchInput" value="${escapeHtml(state.studentsSearch)}" placeholder="Rechercher un élève..." aria-label="Rechercher un élève"></div>
     <div class="filter-row"><div class="day-tabs" id="classFilterTabs"><button class="day-tab ${state.studentsClassFilter==='all'?'active':''}" data-cls="all">Toutes (${state.students.length})</button>${state.classes.map(c=>`<button class="day-tab ${state.studentsClassFilter===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)} (${studentsOf(c.id).length})</button>`).join('')}</div><button class="btn-icon" id="manageClassesBtn" title="Gérer les classes" aria-label="Gérer les classes">⚙</button></div>
-    ${filtered.length?`<div class="card student-list">${filtered.map(s=>{const gs=gradesOfStudent(s.id),a=avg(gs.map(g=>g.value)),att=state.attendance.filter(x=>x.studentId===s.id);const abs=att.filter(x=>x.status==='a').length;return `<div class="row student-card clickable" data-student="${s.id}"><div class="avatar student-avatar">${initials(s.name)}</div><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div><div class="row-sub">${escapeHtml(classLabel(s.classId))} · ${gs.length} note(s) · ${abs} absence(s)</div></div><div class="row-end">${a!==null?`<span class="grade-pill ${gradeClass(a)}">${a.toFixed(1)}</span>`:''}</div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucun élève ${state.studentsSearch?'ne correspond à ta recherche':'enregistré'}.</p><button class="btn btn-primary empty-action" id="emptyAddStudent">Ajouter un élève</button></div>`}
+    ${filtered.length?`<div class="card student-list">${filtered.map(s=>{const gs=gradesOfStudent(s.id),a=weightedSubjectAvg(gs),att=state.attendance.filter(x=>x.studentId===s.id);const abs=att.filter(x=>x.status==='a').length;return `<div class="row student-card clickable" data-student="${s.id}"><div class="avatar student-avatar">${initials(s.name)}</div><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div><div class="row-sub">${escapeHtml(classLabel(s.classId))} · ${gs.length} note(s) · ${abs} absence(s)</div></div><div class="row-end">${a!==null?`<span class="grade-pill ${gradeClass(a)}">${a.toFixed(1)}</span>`:''}</div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucun élève ${state.studentsSearch?'ne correspond à ta recherche':'enregistré'}.</p><button class="btn btn-primary empty-action" id="emptyAddStudent">Ajouter un élève</button></div>`}
   `;
   document.getElementById('studentSearchInput').oninput=e=>{state.studentsSearch=e.target.value;renderStudents();const i=document.getElementById('studentSearchInput');i.focus();i.setSelectionRange(i.value.length,i.value.length);};
   document.querySelectorAll('#classFilterTabs .day-tab').forEach(b=>b.onclick=()=>{state.studentsClassFilter=b.dataset.cls;renderStudents();});
@@ -305,45 +334,10 @@ function renderStudents(){
   document.getElementById('emptyAddStudent')?.addEventListener('click',()=>openStudentForm());
 }
 
-function openStudentForm(existing){
-  const edit=!!existing;
-  openSheet(`<div class="sheet-header"><h3>${edit?"Modifier l'élève":'Nouvel élève'}</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
-    <div class="field"><label>Nom complet</label><input id="fStudentName" value="${edit?escapeHtml(existing.name):''}" placeholder="Ex. Aïcha Mahamat" autocomplete="name"></div>
-    <div class="field"><label>Classe</label><select id="fStudentClass">${state.classes.map(c=>`<option value="${c.id}" ${edit&&existing.classId===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select></div>
-    <div class="field"><label>Téléphone parent/tuteur <span class="optional">optionnel</span></label><input type="tel" id="fStudentPhone" value="${edit?escapeHtml(existing.phone||''):''}" placeholder="+235 ..."></div>
-    <div class="field"><label>Note interne <span class="optional">optionnel</span></label><textarea id="fStudentNote" placeholder="Remarques particulières...">${edit?escapeHtml(existing.note||''):''}</textarea></div>
-    <button class="btn btn-primary btn-block" id="saveStudentBtn">${edit?'Enregistrer':'Ajouter l’élève'}</button>
-    ${edit?'<button class="btn btn-danger-outline btn-block" id="deleteStudentBtn">Supprimer l’élève</button>':''}`);
-  document.getElementById('saveStudentBtn').onclick=async()=>{
-    const name=document.getElementById('fStudentName').value.trim(),classId=document.getElementById('fStudentClass').value,phone=document.getElementById('fStudentPhone').value.trim(),note=document.getElementById('fStudentNote').value.trim();
-    if(!name||!classId){showToast('Nom et classe requis','info');return;}
-    await dbPut('students',{id:edit?existing.id:uid(),classId,name,phone,note}); await loadAll(); closeSheet(); renderAll(); showToast(edit?'Élève modifié':'Élève ajouté');
-  };
-  if(edit) document.getElementById('deleteStudentBtn').onclick=async()=>{
-    if(!confirm(`Supprimer ${existing.name} et ses données scolaires associées ?`)) return;
-    await cascadeDeleteStudent(existing.id); await loadAll(); closeSheet(); renderAll(); showToast('Élève et données associées supprimés');
-  };
-}
-
 async function cascadeDeleteStudent(studentId){
   for(const g of state.grades.filter(x=>x.studentId===studentId)) await dbDelete('grades',g.id);
   for(const a of state.attendance.filter(x=>x.studentId===studentId)) await dbDelete('attendance',a.id);
   await dbDelete('students',studentId);
-}
-
-function openStudentDetail(studentId){
-  const s=state.students.find(x=>x.id===studentId); if(!s)return;
-  const gs=gradesOfStudent(studentId).sort((a,b)=>b.date.localeCompare(a.date)), a=avg(gs.map(g=>g.value));
-  const att=state.attendance.filter(x=>x.studentId===studentId), p=att.filter(x=>x.status==='p').length,r=att.filter(x=>x.status==='r').length,ab=att.filter(x=>x.status==='a').length;
-  openSheet(`<div class="sheet-header"><div><h3>${escapeHtml(s.name)}</h3><p class="sheet-kicker">${escapeHtml(classLabel(s.classId))}${s.phone?' · '+escapeHtml(s.phone):''}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
-    <div class="stat-grid"><div class="stat-box"><div class="v">${a!==null?a.toFixed(1):'—'}</div><div class="l">Moyenne /20</div></div><div class="stat-box"><div class="v">${p}</div><div class="l">Présences</div></div><div class="stat-box"><div class="v">${ab}</div><div class="l">Absences</div></div></div>
-    ${s.note?`<div class="note-card">${escapeHtml(s.note)}</div>`:''}
-    <div class="attendance-summary"><span>Présent ${p}</span><span>Retard ${r}</span><span>Absent ${ab}</span></div>
-    <h2 class="section-title">Dernières notes</h2>${gs.length?`<div class="card">${gs.slice(0,8).map(g=>`<div class="row clickable" data-edit-grade="${g.id}"><div class="row-main"><div class="row-title">${escapeHtml(g.label)}</div><div class="row-sub">${fmtDateShort(g.date)}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`).join('')}</div>`:'<p class="muted">Aucune note enregistrée.</p>'}
-    <div class="sheet-actions"><button class="btn btn-ghost" id="editStudentBtn">Modifier</button><button class="btn btn-primary" id="addGradeForStudentBtn">Ajouter une note</button></div>`);
-  document.getElementById('editStudentBtn').onclick=()=>openStudentForm(s);
-  document.getElementById('addGradeForStudentBtn').onclick=()=>openGradeForm(s.classId,s.id);
-  document.querySelectorAll('[data-edit-grade]').forEach(b=>b.onclick=()=>openGradeForm(null,null,state.grades.find(g=>g.id===b.dataset.editGrade)));
 }
 
 function findSession(date,classId,scheduleId){ return state.sessions.find(s=>s.date===date&&s.classId===classId&&((s.scheduleId||null)===(scheduleId||null))); }
@@ -383,17 +377,6 @@ function openAttendanceSheet(classId,scheduleId){
 }
 function attendanceRows(list,marks){return list.map(s=>`<div class="present-row"><div class="avatar">${initials(s.name)}</div><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div></div><div class="status-btns"><button class="status-btn p ${marks[s.id]==='p'?'on':''}" data-status="p" data-sid="${s.id}" aria-label="Présent">P</button><button class="status-btn r ${marks[s.id]==='r'?'on':''}" data-status="r" data-sid="${s.id}" aria-label="Retard">R</button><button class="status-btn a ${marks[s.id]==='a'?'on':''}" data-status="a" data-sid="${s.id}" aria-label="Absent">A</button></div></div>`).join('');}
 
-function renderSchedule(){
-  const el=document.getElementById('view-schedule'), day=state.scheduleDayIndex, slots=state.schedule.filter(s=>s.day===day).sort((a,b)=>a.start.localeCompare(b.start));
-  el.innerHTML=`<div class="day-tabs" id="dayTabs">${DAYS_ORDER.map(d=>`<button class="day-tab ${day===d?'active':''}" data-day="${d}">${DAYS_FR_SHORT[d]}</button>`).join('')}</div>
-    <div class="section-inline"><div><h2 class="section-title">${DAYS_FR[day][0].toUpperCase()+DAYS_FR[day].slice(1)}</h2><p class="muted">${slots.length} séance(s)</p></div><button class="btn btn-sm btn-ghost" id="scheduleAdd">+ Séance</button></div>
-    ${slots.length?`<div class="card">${slots.map(s=>{const c=getClass(s.classId);return `<div class="slot clickable" data-slot="${s.id}"><div class="slot-time">${s.start}<br><span>${s.end}</span></div><div class="slot-bar"></div><div class="slot-body"><div class="cls">${escapeHtml(c?.name||'—')}</div><div class="topic">${escapeHtml(s.topic||'Sans thème')}</div></div><button class="mini-action" data-call="${s.id}" title="Faire l'appel" aria-label="Faire l'appel">✓</button></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune séance le ${DAYS_FR[day]}.</p><button class="btn btn-primary empty-action" id="emptyAddSlot">Ajouter une séance</button></div>`}`;
-  document.querySelectorAll('#dayTabs .day-tab').forEach(b=>b.onclick=()=>{state.scheduleDayIndex=Number(b.dataset.day);renderSchedule();});
-  document.getElementById('scheduleAdd').onclick=()=>openSlotForm(null,day);
-  document.querySelectorAll('[data-slot]').forEach(r=>r.onclick=()=>openSlotForm(state.schedule.find(s=>s.id===r.dataset.slot)));
-  document.querySelectorAll('[data-call]').forEach(b=>b.onclick=e=>{e.stopPropagation();const s=state.schedule.find(x=>x.id===b.dataset.call);openAttendanceSheet(s.classId,s.id);});
-  document.getElementById('emptyAddSlot')?.addEventListener('click',()=>openSlotForm(null,day));
-}
 function overlaps(a,b){ return a.day===b.day && a.id!==b.id && a.classId===b.classId && toMin(a.start)<toMin(b.end) && toMin(b.start)<toMin(a.end); }
 function openSlotForm(existing,presetDay){
   const edit=!!existing;
@@ -436,20 +419,6 @@ function openHomeworkDetail(id){
   document.getElementById('editHwBtn').onclick=()=>openHomeworkForm(h);
 }
 
-function renderGrades(){
-  const el=document.getElementById('view-grades');if(state.gradesClassFilter===null&&state.classes.length)state.gradesClassFilter=state.classes[0].id;const cid=state.gradesClassFilter,cls=getClass(cid),grades=state.grades.filter(g=>g.classId===cid).sort((a,b)=>b.date.localeCompare(a.date)),classAvg=avg(grades.map(g=>g.value));
-  el.innerHTML=`<div class="day-tabs" id="gradeClassTabs">${state.classes.map(c=>`<button class="day-tab ${cid===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)}</button>`).join('')}</div>${cid?`<div class="stat-grid"><div class="stat-box"><div class="v">${classAvg!==null?classAvg.toFixed(1):'—'}</div><div class="l">Moyenne classe</div></div><div class="stat-box"><div class="v">${grades.length}</div><div class="l">Notes saisies</div></div><div class="stat-box"><div class="v">${studentsOf(cid).length}</div><div class="l">Élèves</div></div></div><div class="grade-toolbar"><span class="muted">Tapote une note pour la modifier</span><button class="btn btn-sm btn-ghost" id="gradeExportCsv">CSV</button></div>${grades.length?`<div class="card">${grades.slice(0,30).map(g=>{const s=state.students.find(x=>x.id===g.studentId);return `<div class="row clickable" data-edit-grade="${g.id}"><div class="avatar">${s?initials(s.name):'?'}</div><div class="row-main"><div class="row-title">${escapeHtml(s?.name||'Élève supprimé')}</div><div class="row-sub">${escapeHtml(g.label)} · ${fmtDateShort(g.date)}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune note pour ${escapeHtml(cls.name)}.</p><button class="btn btn-primary empty-action" id="emptyAddGrade">Ajouter une note</button></div>`}`:'<div class="empty"><p>Crée d’abord une classe.</p></div>'}`;
-  document.querySelectorAll('#gradeClassTabs .day-tab').forEach(b=>b.onclick=()=>{state.gradesClassFilter=b.dataset.cls;renderGrades();});document.querySelectorAll('[data-edit-grade]').forEach(b=>b.onclick=()=>openGradeForm(null,null,state.grades.find(g=>g.id===b.dataset.editGrade)));document.getElementById('emptyAddGrade')?.addEventListener('click',()=>openGradeForm(cid));document.getElementById('gradeExportCsv')?.addEventListener('click',()=>exportGradesCSV(cid));
-}
-function openGradeForm(presetClassId,presetStudentId,existing){
-  const edit=!!existing,cid=existing?.classId||presetClassId||state.gradesClassFilter||state.classes[0]?.id;
-  openSheet(`<div class="sheet-header"><h3>${edit?'Modifier la note':'Nouvelle note'}</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><div class="field"><label>Classe</label><select id="fGradeClass" ${edit?'disabled':''}>${state.classes.map(c=>`<option value="${c.id}" ${cid===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select></div><div class="field"><label>Élève</label><select id="fGradeStudent" ${edit?'disabled':''}></select></div><div class="field"><label>Intitulé de l’évaluation</label><input id="fGradeLabel" value="${edit?escapeHtml(existing.label):''}" placeholder="Ex. Interro chapitre 3"></div><div class="field-row"><div class="field"><label>Note /20</label><input type="number" id="fGradeValue" min="0" max="20" step="0.25" value="${edit?existing.value:''}" placeholder="14.5"></div><div class="field"><label>Date</label><input type="date" id="fGradeDate" value="${edit?existing.date:todayISO()}"></div></div><button class="btn btn-primary btn-block" id="saveGradeBtn">${edit?'Enregistrer':'Ajouter la note'}</button>${edit?'<button class="btn btn-danger-outline btn-block" id="deleteGradeBtn">Supprimer la note</button>':''}`);
-  function fill(){const id=document.getElementById('fGradeClass').value;document.getElementById('fGradeStudent').innerHTML=studentsOf(id).map(s=>`<option value="${s.id}" ${(existing?.studentId||presetStudentId)===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')||'<option value="">Aucun élève</option>';}
-  fill();document.getElementById('fGradeClass').onchange=fill;
-  document.getElementById('saveGradeBtn').onclick=async()=>{const classId=document.getElementById('fGradeClass').value,studentId=document.getElementById('fGradeStudent').value,label=document.getElementById('fGradeLabel').value.trim(),value=parseFloat(document.getElementById('fGradeValue').value),date=document.getElementById('fGradeDate').value;if(!studentId||!label||Number.isNaN(value)||value<0||value>20||!date){showToast('Vérifie les champs (note de 0 à 20)','info');return;}await dbPut('grades',{id:edit?existing.id:uid(),classId,studentId,label,value,date});await loadAll();state.gradesClassFilter=classId;closeSheet();renderAll();showToast(edit?'Note modifiée':'Note enregistrée');};
-  if(edit)document.getElementById('deleteGradeBtn').onclick=async()=>{if(!confirm('Supprimer cette note ?'))return;await dbDelete('grades',existing.id);await loadAll();closeSheet();renderAll();showToast('Note supprimée');};
-}
-
 function openClassManager(){
   openSheet(`<div class="sheet-header"><div><h3>Mes classes</h3><p class="sheet-kicker">${state.classes.length} classe(s)</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><div class="card">${state.classes.map(c=>`<div class="row"><div class="row-main"><div class="row-title">${escapeHtml(c.name)}</div><div class="row-sub">${escapeHtml(c.subject||'')} · ${studentsOf(c.id).length} élève(s)</div></div><button class="btn btn-sm btn-ghost" data-editcls="${c.id}">Modifier</button></div>`).join('')||'<p class="muted">Aucune classe.</p>'}</div><button class="btn btn-primary btn-block" id="addClassBtn">Ajouter une classe</button>`);
   document.querySelectorAll('[data-editcls]').forEach(b=>b.onclick=()=>openClassForm(state.classes.find(c=>c.id===b.dataset.editcls)));document.getElementById('addClassBtn').onclick=()=>openClassForm();
@@ -479,8 +448,13 @@ async function exportData(){
 function openImportPicker(){ document.getElementById('importFileInput').click(); }
 async function importData(file){
   try{
+    if(!file||file.size>10*1024*1024) throw new Error('Sauvegarde trop volumineuse');
     const parsed=JSON.parse(await file.text());
     if(!parsed?.stores?.classes||!parsed?.stores?.students) throw new Error('Format invalide');
+    const arrays=Object.keys(STORES).every(name=>parsed.stores[name]===undefined||Array.isArray(parsed.stores[name]));
+    if(!arrays) throw new Error('Structure de sauvegarde invalide');
+    for(const row of parsed.stores.students||[]){if(!row||typeof row.id!=='string'||typeof row.name!=='string'||typeof row.classId!=='string')throw new Error('Élève invalide');}
+    for(const row of parsed.stores.classes||[]){if(!row||typeof row.id!=='string'||typeof row.name!=='string')throw new Error('Classe invalide');}
     if(!confirm('Restaurer cette sauvegarde ? Les données actuelles seront remplacées.')) return;
     for(const name of Object.keys(STORES)) await clearStore(name);
     for(const name of Object.keys(STORES)){for(const row of (parsed.stores[name]||[])) await dbPut(name,row);}
@@ -488,8 +462,8 @@ async function importData(file){
   }catch(e){console.error(e);showToast('Impossible de restaurer cette sauvegarde','info');}
 }
 function exportGradesCSV(classId){
-  const rows=[['Élève','Classe','Évaluation','Note /20','Date']];
-  state.grades.filter(g=>g.classId===classId).forEach(g=>{const s=state.students.find(x=>x.id===g.studentId);rows.push([s?.name||'Élève supprimé',classLabel(g.classId),g.label,g.value,g.date]);});
+  const rows=[['Élève','Classe','Matière','Coef. matière','Évaluation','Note /20','Coef. note','Date']];
+  state.grades.filter(g=>g.classId===classId).forEach(g=>{const s=state.students.find(x=>x.id===g.studentId),subject=subjectOf(g.subjectId);rows.push([s?.name||'Élève supprimé',classLabel(g.classId),subject?.name||'Matière générale',subject?.coefficient||1,g.label,g.value,g.coef||1,g.date]);});
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
   const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`notes-${escapeFileName(classLabel(classId))}-${todayISO()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('CSV exporté');
 }
@@ -541,8 +515,26 @@ function weightedAvg(grades){
   for(const g of grades){ const w=Math.max(0.01, Number(g.coef)||1); sum += Number(g.value)*w; weight += w; }
   return weight ? sum/weight : null;
 }
+function subjectOf(id){ return state.subjects.find(s=>s.id===id); }
+function weightedSubjectAvg(grades){
+  if(!grades.length) return null;
+  const groups=new Map();
+  for(const grade of grades){const key=grade.subjectId||'__legacy__';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(grade);}
+  let sum=0,weight=0;
+  for(const [id,list] of groups){
+    const subject=id==='__legacy__'?null:subjectOf(id);
+    const subjectAvg=weightedAvg(list), subjectCoef=Math.max(0.01,Number(subject?.coefficient)||1);
+    if(subjectAvg!==null){sum+=subjectAvg*subjectCoef;weight+=subjectCoef;}
+  }
+  return weight?sum/weight:null;
+}
 function attendanceStats(classId){
   const arr=state.attendance.filter(a=>!classId||a.classId===classId);
+  const p=arr.filter(a=>a.status==='p').length,r=arr.filter(a=>a.status==='r').length,a=arr.filter(a=>a.status==='a').length;
+  const total=p+r+a; return {p,r,a,total,rate:total?((p+r)/total*100):null};
+}
+function attendanceStatsForDate(date=todayISO(),classId=null){
+  const arr=state.attendance.filter(a=>a.date===date&&(!classId||a.classId===classId));
   const p=arr.filter(a=>a.status==='p').length,r=arr.filter(a=>a.status==='r').length,a=arr.filter(a=>a.status==='a').length;
   const total=p+r+a; return {p,r,a,total,rate:total?((p+r)/total*100):null};
 }
@@ -556,7 +548,7 @@ async function fileToDataUrl(file){
 function openStudentForm(existing){
   const edit=!!existing;
   openSheet(`<div class="sheet-header"><h3>${edit?"Modifier l'élève":'Nouvel élève'}</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
-    <div class="student-photo-editor">${existing?.photo?`<img src="${existing.photo}" alt="Photo de ${escapeHtml(existing.name)}">`:`<div class="student-photo-placeholder">${edit?initials(existing.name):'+'}</div>`}<label class="btn btn-sm btn-ghost">${existing?.photo?'Changer la photo':'Ajouter une photo'}<input id="fStudentPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
+    <div class="student-photo-editor">${safePhotoUrl(existing?.photo)?`<img src="${safePhotoUrl(existing.photo)}" alt="Photo de ${escapeHtml(existing.name)}">`:`<div class="student-photo-placeholder">${edit?initials(existing.name):'+'}</div>`}<label class="btn btn-sm btn-ghost">${safePhotoUrl(existing?.photo)?'Changer la photo':'Ajouter une photo'}<input id="fStudentPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
     <div class="field"><label>Nom complet</label><input id="fStudentName" value="${edit?escapeHtml(existing.name):''}" placeholder="Ex. Aïcha Mahamat" autocomplete="name"></div>
     <div class="field"><label>Classe</label><select id="fStudentClass">${state.classes.map(c=>`<option value="${c.id}" ${edit&&existing.classId===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select></div>
     <div class="field"><label>Téléphone parent/tuteur <span class="optional">optionnel</span></label><input type="tel" id="fStudentPhone" value="${edit?escapeHtml(existing.phone||''):''}" placeholder="+235 ..."></div>
@@ -573,12 +565,12 @@ function openStudentDetail(studentId){
   const gs=gradesOfStudent(studentId).sort((a,b)=>b.date.localeCompare(a.date)), a=weightedAvg(gs), at=state.attendance.filter(x=>x.studentId===studentId), p=at.filter(x=>x.status==='p').length,r=at.filter(x=>x.status==='r').length,ab=at.filter(x=>x.status==='a').length,total=at.length,rate=total?Math.round((p+r)/total*100):null;
   const call=s.phone?`<a class="btn btn-ghost" href="tel:${escapeHtml(s.phone)}">Appeler</a>`:'';
   openSheet(`<div class="sheet-header"><div><h3>${escapeHtml(s.name)}</h3><p class="sheet-kicker">${escapeHtml(classLabel(s.classId))}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
-    <div class="student-profile-head">${s.photo?`<img src="${s.photo}" alt="Photo">`:`<div class="student-avatar-large">${initials(s.name)}</div>`}<div><div class="student-profile-name">${escapeHtml(s.name)}</div><div class="muted">${s.phone?escapeHtml(s.phone):'Aucun contact enregistré'}</div></div></div>
+    <div class="student-profile-head">${safePhotoUrl(s.photo)?`<img src="${safePhotoUrl(s.photo)}" alt="Photo">`:`<div class="student-avatar-large">${initials(s.name)}</div>`}<div><div class="student-profile-name">${escapeHtml(s.name)}</div><div class="muted">${s.phone?escapeHtml(s.phone):'Aucun contact enregistré'}</div></div></div>
     <div class="stat-grid"><div class="stat-box"><div class="v">${a!==null?a.toFixed(1):'—'}</div><div class="l">Moyenne /20</div></div><div class="stat-box"><div class="v">${rate!==null?rate+'%':'—'}</div><div class="l">Présence</div></div><div class="stat-box"><div class="v">${ab}</div><div class="l">Absences</div></div></div>
     ${s.note?`<div class="note-card">${escapeHtml(s.note)}</div>`:''}
     <div class="attendance-summary"><span>Présent ${p}</span><span>Retard ${r}</span><span>Absent ${ab}</span></div>
     <div class="sheet-actions">${call}<button class="btn btn-ghost" id="editStudentBtn">Modifier</button><button class="btn btn-primary" id="addGradeForStudentBtn">Note</button></div>
-    <h2 class="section-title">Historique des notes</h2>${gs.length?`<div class="card">${gs.slice(0,10).map(g=>`<div class="row clickable" data-edit-grade="${g.id}"><div class="row-main"><div class="row-title">${escapeHtml(g.label)}</div><div class="row-sub">${fmtDateShort(g.date)} · coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`).join('')}</div>`:'<p class="muted">Aucune note enregistrée.</p>'}`);
+    <h2 class="section-title">Historique des notes</h2>${gs.length?`<div class="card">${gs.slice(0,10).map(g=>`<div class="row clickable" data-edit-grade="${g.id}"><div class="row-main"><div class="row-title">${escapeHtml(subjectOf(g.subjectId)?.name||'Matière générale')} · ${escapeHtml(g.label)}</div><div class="row-sub">${fmtDateShort(g.date)} · note coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`).join('')}</div>`:'<p class="muted">Aucune note enregistrée.</p>'}`);
   document.getElementById('editStudentBtn').onclick=()=>openStudentForm(s);document.getElementById('addGradeForStudentBtn').onclick=()=>openGradeForm(s.classId,s.id);document.querySelectorAll('[data-edit-grade]').forEach(b=>b.onclick=()=>openGradeForm(null,null,state.grades.find(g=>g.id===b.dataset.editGrade)));
 }
 
@@ -586,46 +578,71 @@ function openStudentDetail(studentId){
 function renderGrades(){
   const el=document.getElementById('view-grades');
   if(state.gradesClassFilter===null&&state.classes.length)state.gradesClassFilter=state.classes[0].id;
-  const cid=state.gradesClassFilter,cls=getClass(cid),grades=state.grades.filter(g=>g.classId===cid).sort((a,b)=>b.date.localeCompare(a.date)),classAvg=weightedAvg(grades);
+  const cid=state.gradesClassFilter,cls=getClass(cid),grades=state.grades.filter(g=>g.classId===cid).sort((a,b)=>b.date.localeCompare(a.date)),classAvg=weightedSubjectAvg(grades);
   el.innerHTML=`<div class="day-tabs" id="gradeClassTabs">${state.classes.map(c=>`<button class="day-tab ${cid===c.id?'active':''}" data-cls="${c.id}">${escapeHtml(c.name)}</button>`).join('')}</div>${cid?`
     <div class="stat-grid"><div class="stat-box"><div class="v">${classAvg!==null?classAvg.toFixed(1):'—'}</div><div class="l">Moyenne pondérée</div></div><div class="stat-box"><div class="v">${grades.length}</div><div class="l">Notes</div></div><div class="stat-box"><div class="v">${studentsOf(cid).length}</div><div class="l">Élèves</div></div></div>
-    <div class="feature-grid"><button class="feature-btn" id="bulkGradeBtn">📝 Nouvelle évaluation<small>Barème, coefficient et saisie collective</small></button><button class="feature-btn" id="gradeStatsBtn">📊 Analyse<small>Distribution & progression</small></button></div>
+    <div class="feature-grid"><button class="feature-btn" id="bulkGradeBtn">📝 Nouvelle évaluation<small>Matière, coefficient et saisie collective</small></button><button class="feature-btn" id="manageSubjectsBtn">📚 Matières<small>Ajouter et pondérer les matières</small></button></div>
     <div class="grade-toolbar"><span class="muted">Coefficient intégré · tapote une note pour la modifier</span><button class="btn btn-sm btn-ghost" id="gradeExportCsv">CSV</button></div>
-    ${grades.length?`<div class="card">${grades.slice(0,40).map(g=>{const s=state.students.find(x=>x.id===g.studentId);return `<div class="row clickable" data-edit-grade="${g.id}"><div class="avatar">${s?initials(s.name):'?'}</div><div class="row-main"><div class="row-title">${escapeHtml(s?.name||'Élève supprimé')}</div><div class="row-sub">${escapeHtml(g.label)} · ${fmtDateShort(g.date)} · coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune note pour ${escapeHtml(cls.name)}.</p><button class="btn btn-primary empty-action" id="emptyAddGrade">Ajouter une note</button></div>`}`:'<div class="empty"><p>Crée d’abord une classe.</p></div>'}`;
+    ${grades.length?`<div class="card">${grades.slice(0,40).map(g=>{const s=state.students.find(x=>x.id===g.studentId);return `<div class="row clickable" data-edit-grade="${g.id}"><div class="avatar">${s?initials(s.name):'?'}</div><div class="row-main"><div class="row-title">${escapeHtml(s?.name||'Élève supprimé')}</div><div class="row-sub">${escapeHtml(subjectOf(g.subjectId)?.name||'Matière générale')} · ${escapeHtml(g.label)} · ${fmtDateShort(g.date)} · note coef. ${Number(g.coef)||1}</div></div><div class="row-end"><span class="grade-pill ${gradeClass(g.value)}">${g.value}/20</span></div></div>`;}).join('')}</div>`:`<div class="empty"><p>Aucune note pour ${escapeHtml(cls.name)}.</p><button class="btn btn-primary empty-action" id="emptyAddGrade">Ajouter une note</button></div>`}`:'<div class="empty"><p>Crée d’abord une classe.</p></div>'}`;
   document.querySelectorAll('#gradeClassTabs .day-tab').forEach(b=>b.onclick=()=>{state.gradesClassFilter=b.dataset.cls;renderGrades();});
   document.querySelectorAll('[data-edit-grade]').forEach(b=>b.onclick=()=>openGradeForm(null,null,state.grades.find(g=>g.id===b.dataset.editGrade)));
   document.getElementById('emptyAddGrade')?.addEventListener('click',()=>openGradeForm(cid));
   document.getElementById('gradeExportCsv')?.addEventListener('click',()=>exportGradesCSV(cid));
   document.getElementById('bulkGradeBtn')?.addEventListener('click',()=>openBulkGradeForm(cid));
-  document.getElementById('gradeStatsBtn')?.addEventListener('click',()=>openClassGradeStats(cid));
+  document.getElementById('manageSubjectsBtn')?.addEventListener('click',()=>openSubjectManager(cid));
 }
-function openGradeForm(presetClassId,presetStudentId,existing){
+async function ensureSubjectForClass(classId){
+  let subject=state.subjects.find(s=>s.classId===classId);
+  if(!subject){subject={id:uid(),classId,name:getClass(classId)?.subject||'Matière générale',coefficient:1};await dbPut('subjects',subject);state.subjects.push(subject);}
+  return subject;
+}
+async function openGradeForm(presetClassId,presetStudentId,existing){
   const edit=!!existing,cid=existing?.classId||presetClassId||state.gradesClassFilter||state.classes[0]?.id;
+  if(!cid){showToast('Crée d’abord une classe','info');return;}
+  await ensureSubjectForClass(cid);
   openSheet(`<div class="sheet-header"><h3>${edit?'Modifier la note':'Nouvelle note'}</h3><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
     <div class="field"><label>Classe</label><select id="fGradeClass" ${edit?'disabled':''}>${state.classes.map(c=>`<option value="${c.id}" ${cid===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>Matière</label><select id="fGradeSubject" ${edit?'disabled':''}></select><small class="muted">Le coefficient de la matière est géré dans « Matières ».</small></div>
     <div class="field"><label>Élève</label><select id="fGradeStudent" ${edit?'disabled':''}></select></div>
     <div class="field"><label>Intitulé de l’évaluation</label><input id="fGradeLabel" value="${edit?escapeHtml(existing.label):''}" placeholder="Ex. Interro chapitre 3"></div>
     <div class="field-row"><div class="field"><label>Note /20</label><input type="number" id="fGradeValue" min="0" max="20" step="0.25" value="${edit?existing.value:''}" placeholder="14.5"></div><div class="field"><label>Coefficient</label><input type="number" id="fGradeCoef" min="0.25" max="20" step="0.25" value="${edit?(existing.coef||1):1}"></div></div>
     <div class="field"><label>Date</label><input type="date" id="fGradeDate" value="${edit?existing.date:todayISO()}"></div>
     <button class="btn btn-primary btn-block" id="saveGradeBtn">${edit?'Enregistrer':'Ajouter la note'}</button>${edit?'<button class="btn btn-danger-outline btn-block" id="deleteGradeBtn">Supprimer la note</button>':''}`);
-  function fill(){const id=document.getElementById('fGradeClass').value;document.getElementById('fGradeStudent').innerHTML=studentsOf(id).map(s=>`<option value="${s.id}" ${(existing?.studentId||presetStudentId)===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')||'<option value="">Aucun élève</option>';}
+  function fill(){const id=document.getElementById('fGradeClass').value;const subjects=state.subjects.filter(s=>s.classId===id);document.getElementById('fGradeSubject').innerHTML=subjects.map(s=>`<option value="${s.id}" ${(existing?.subjectId||subjects[0]?.id)===s.id?'selected':''}>${escapeHtml(s.name)} · coef. ${Number(s.coefficient)||1}</option>`).join('')||'<option value="">Aucune matière</option>';document.getElementById('fGradeStudent').innerHTML=studentsOf(id).map(s=>`<option value="${s.id}" ${(existing?.studentId||presetStudentId)===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')||'<option value="">Aucun élève</option>';}
   fill();document.getElementById('fGradeClass').onchange=fill;
-  document.getElementById('saveGradeBtn').onclick=async()=>{const classId=document.getElementById('fGradeClass').value,studentId=document.getElementById('fGradeStudent').value,label=document.getElementById('fGradeLabel').value.trim(),value=parseFloat(document.getElementById('fGradeValue').value),coef=parseFloat(document.getElementById('fGradeCoef').value)||1,date=document.getElementById('fGradeDate').value;if(!studentId||!label||Number.isNaN(value)||value<0||value>20||coef<=0||!date){showToast('Vérifie les champs (0 à 20, coefficient positif)','info');return;}await dbPut('grades',{id:edit?existing.id:uid(),classId,studentId,label,value,coef,date});await loadAll();state.gradesClassFilter=classId;closeSheet();renderAll();showToast(edit?'Note modifiée':'Note enregistrée');};
+  const gradeFields=['fGradeSubject','fGradeStudent','fGradeLabel','fGradeValue','fGradeCoef','fGradeDate'].map(id=>document.getElementById(id)).filter(Boolean);
+  gradeFields.forEach((field,index)=>field.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();if(e.ctrlKey||e.metaKey){document.getElementById('saveGradeBtn').click();return;}gradeFields[index+1]?.focus()||document.getElementById('saveGradeBtn').focus();}));
+  document.getElementById('saveGradeBtn').onclick=async()=>{const classId=document.getElementById('fGradeClass').value,subjectId=document.getElementById('fGradeSubject').value,studentId=document.getElementById('fGradeStudent').value,label=document.getElementById('fGradeLabel').value.trim(),value=parseFloat(document.getElementById('fGradeValue').value),coef=parseFloat(document.getElementById('fGradeCoef').value)||1,date=document.getElementById('fGradeDate').value;if(!subjectId||!studentId||!label||Number.isNaN(value)||value<0||value>20||coef<=0||!date){showToast('Vérifie matière, note et coefficient','info');return;}await dbPut('grades',{id:edit?existing.id:uid(),classId,subjectId,studentId,label,value,coef,date});await loadAll();state.gradesClassFilter=classId;closeSheet();renderAll();showToast(edit?'Note modifiée':'Note enregistrée');};
   if(edit)document.getElementById('deleteGradeBtn').onclick=async()=>{if(!confirm('Supprimer cette note ?'))return;await dbDelete('grades',existing.id);await loadAll();closeSheet();renderAll();showToast('Note supprimée');};
+}
+function openSubjectManager(classId){
+  const cls=getClass(classId), subjects=state.subjects.filter(s=>s.classId===classId);
+  openSheet(`<div class="sheet-header"><div><h3>Matières · ${escapeHtml(cls?.name||'')}</h3><p class="sheet-kicker">Le coefficient pondère la moyenne de la matière dans la classe.</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><div class="card" id="subjectRows">${subjects.map(s=>`<div class="row"><div class="row-main"><div class="row-title">${escapeHtml(s.name)}</div><div class="row-sub">Coefficient général : ${Number(s.coefficient)||1}</div></div><button class="btn btn-sm btn-ghost" data-edit-subject="${s.id}">Modifier</button></div>`).join('')||'<p class="muted">Aucune matière.</p>'}</div><button class="btn btn-primary btn-block" id="addSubjectBtn">+ Ajouter une matière</button>`);
+  document.querySelectorAll('[data-edit-subject]').forEach(b=>b.onclick=()=>openSubjectForm(state.subjects.find(s=>s.id===b.dataset.editSubject)));
+  document.getElementById('addSubjectBtn').onclick=()=>openSubjectForm(null);
+  function openSubjectForm(existing){
+    const edit=!!existing;
+    openSheet(`<div class="sheet-header"><h3>${edit?'Modifier la matière':'Nouvelle matière'}</h3><button class="btn-icon" onclick="openSubjectManager('${classId}')" aria-label="Retour">←</button></div><div class="field"><label>Nom de la matière</label><input id="fSubjectName" value="${edit?escapeHtml(existing.name):''}" placeholder="Ex. Mathématiques"></div><div class="field"><label>Coefficient général</label><input id="fSubjectCoef" type="number" min="0.01" max="100" step="0.25" value="${edit?(existing.coefficient||1):1}"></div><button class="btn btn-primary btn-block" id="saveSubjectBtn">${edit?'Enregistrer':'Ajouter la matière'}</button>${edit?'<button class="btn btn-danger-outline btn-block" id="deleteSubjectBtn">Supprimer la matière</button>':''}`);
+    document.getElementById('saveSubjectBtn').onclick=async()=>{const name=document.getElementById('fSubjectName').value.trim(),coefficient=parseFloat(document.getElementById('fSubjectCoef').value);if(!name||!Number.isFinite(coefficient)||coefficient<=0){showToast('Nom et coefficient positif requis','info');return;}await dbPut('subjects',{id:edit?existing.id:uid(),classId,name,coefficient});await loadAll();openSubjectManager(classId);};
+    document.getElementById('deleteSubjectBtn')?.addEventListener('click',async()=>{if(subjects.length<=1){showToast('Une classe doit garder au moins une matière','info');return;}if(!confirm('Supprimer cette matière ? Les notes seront conservées dans la première matière.'))return;const fallback=state.subjects.find(s=>s.classId===classId&&s.id!==existing.id);for(const g of state.grades.filter(g=>g.subjectId===existing.id)){g.subjectId=fallback.id;await dbPut('grades',g);}await dbDelete('subjects',existing.id);await loadAll();openSubjectManager(classId);});
+  }
 }
 function openBulkGradeForm(classId){
   const students=studentsOf(classId); if(!students.length){showToast('Cette classe n’a aucun élève','info');return;}
+  const subjects=state.subjects.filter(s=>s.classId===classId);
   openSheet(`<div class="sheet-header"><div><h3>Saisie collective</h3><p class="sheet-kicker">${escapeHtml(classLabel(classId))}</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
+    <div class="field"><label>Matière</label><select id="bulkSubject">${subjects.map(s=>`<option value="${s.id}">${escapeHtml(s.name)} · coef. ${Number(s.coefficient)||1}</option>`).join('')}</select></div>
     <div class="field"><label>Intitulé de l’évaluation</label><input id="bulkLabel" placeholder="Ex. Devoir surveillé 1"></div>
     <div class="field-row"><div class="field"><label>Coefficient</label><input id="bulkCoef" type="number" min="0.25" step="0.25" value="1"></div><div class="field"><label>Date</label><input id="bulkDate" type="date" value="${todayISO()}"></div></div>
     <div class="bulk-table">${students.map(s=>`<div class="bulk-row"><div>${escapeHtml(s.name)}</div><input class="bulk-value" data-sid="${s.id}" type="number" min="0" max="20" step="0.25" placeholder="/20"></div>`).join('')}</div>
     <button class="btn btn-primary btn-block" id="saveBulkGrades" style="margin-top:12px">Enregistrer les notes saisies</button>`);
-  document.getElementById('saveBulkGrades').onclick=async()=>{const label=document.getElementById('bulkLabel').value.trim(),coef=parseFloat(document.getElementById('bulkCoef').value)||1,date=document.getElementById('bulkDate').value,inputs=[...document.querySelectorAll('.bulk-value')];if(!label||!date){showToast('Évaluation et date requises','info');return;}let n=0;for(const i of inputs){if(i.value==='')continue;const v=parseFloat(i.value);if(v>=0&&v<=20){await dbPut('grades',{id:uid(),classId,studentId:i.dataset.sid,label,value:v,coef,date});n++;}}await loadAll();state.gradesClassFilter=classId;closeSheet();renderAll();showToast(`${n} note(s) enregistrée(s)`);};
+  document.getElementById('saveBulkGrades').onclick=async()=>{const subjectId=document.getElementById('bulkSubject').value,label=document.getElementById('bulkLabel').value.trim(),coef=parseFloat(document.getElementById('bulkCoef').value)||1,date=document.getElementById('bulkDate').value,inputs=[...document.querySelectorAll('.bulk-value')];if(!subjectId||!label||!date||coef<=0){showToast('Matière, évaluation et coefficient requis','info');return;}let n=0;for(const i of inputs){if(i.value==='')continue;const v=parseFloat(i.value);if(v>=0&&v<=20){await dbPut('grades',{id:uid(),classId,subjectId,studentId:i.dataset.sid,label,value:v,coef,date});n++;}}await loadAll();state.gradesClassFilter=classId;closeSheet();renderAll();showToast(`${n} note(s) enregistrée(s)`);};
+  document.querySelectorAll('.bulk-value').forEach((input,index,all)=>input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();all[index+1]?.focus()||document.getElementById('saveBulkGrades').focus();}}));
 }
 function openClassGradeStats(classId){
   const grades=state.grades.filter(g=>g.classId===classId),students=studentsOf(classId), bins=[0,0,0,0,0], distribution=[0,0,0,0,0];
   grades.forEach(g=>{const i=Math.min(4,Math.floor(Number(g.value)/4));bins[i]++;});
-  const rows=students.map(s=>({s,a:weightedAvg(grades.filter(g=>g.studentId===s.id))})).filter(x=>x.a!==null).sort((a,b)=>b.a-a.a);
+  const rows=students.map(s=>({s,a:weightedSubjectAvg(grades.filter(g=>g.studentId===s.id))})).filter(x=>x.a!==null).sort((a,b)=>b.a-a.a);
   const max=Math.max(1,...bins);
   openSheet(`<div class="sheet-header"><div><h3>Analyse · ${escapeHtml(classLabel(classId))}</h3><p class="sheet-kicker">${grades.length} note(s)</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div>
     <div class="card"><div class="bar-chart">${bins.map((n,i)=>`<div class="bar" style="height:${Math.max(5,n/max*100)}%"><span>${n}</span><small>${i*4}–${i*4+3.99}</small></div>`).join('')}</div></div>
@@ -860,6 +877,7 @@ if(document.getElementById('printRoot')===null){const pr=document.createElement(
   try{
     await openDB();
     await loadAll();
+    await migrateLegacySubjects();
     await migrateLegacyAttendance();
     await seedIfNeeded();
     await loadAll();

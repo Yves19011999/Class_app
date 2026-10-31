@@ -1,4 +1,4 @@
-# Classe — UltraReview v4.5
+# Classe — UltraReview v4.9.3
 
 **Classe** est un carnet de bord pédagogique mobile, offline-first, installable comme PWA et prêt à être empaqueté en application Android.
 
@@ -57,4 +57,4 @@ Le dossier web peut être servi par n’importe quel serveur HTTP/HTTPS. L’ouv
 
 ## Version
 
-4.9.0
+4.9.3
