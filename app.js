@@ -252,10 +252,10 @@ function renderToday(){
   el.innerHTML=`
     <section class="reference-hero hero">${hero}<div class="hero-motto">« Une éducation de qualité,<br>un avenir meilleur. »</div></section>
     <section class="dashboard-kpis">
-      <div class="ref-kpi kpi-blue"><span class="kpi-icon">♟</span><div><b>${classCount}</b><strong>Classes</strong><small>↑ actives</small></div><span class="kpi-arrow">→</span></div>
-      <div class="ref-kpi kpi-green"><span class="kpi-icon">♟</span><div><b>${totalStudents}</b><strong>Élèves</strong><small>↑ inscrits</small></div><span class="kpi-arrow">→</span></div>
-      <div class="ref-kpi kpi-purple"><span class="kpi-icon">▣</span><div><b>${state.schedule.length}</b><strong>Séances</strong><small>planning</small></div><span class="kpi-arrow">→</span></div>
-      <div class="ref-kpi kpi-orange"><span class="kpi-icon">▮</span><div><b>${avgAll===null?'—':avgAll.toFixed(1)+' /20'}</b><strong>Moyenne générale</strong><small>${at.rate===null?'À compléter':Math.round(at.rate)+'% présence'}</small></div><span class="kpi-arrow">→</span></div>
+      <button class="ref-kpi kpi-blue" data-dashboard-tab="students" aria-label="Ouvrir les classes et les élèves"><span class="kpi-icon">♟</span><div><b>${classCount}</b><strong>Classes</strong><small>↑ actives</small></div><span class="kpi-arrow">→</span></button>
+      <button class="ref-kpi kpi-green" data-dashboard-tab="students" aria-label="Ouvrir les élèves"><span class="kpi-icon">♟</span><div><b>${totalStudents}</b><strong>Élèves</strong><small>↑ inscrits</small></div><span class="kpi-arrow">→</span></button>
+      <button class="ref-kpi kpi-purple" data-dashboard-tab="schedule" aria-label="Ouvrir le planning des séances"><span class="kpi-icon">▣</span><div><b>${state.schedule.length}</b><strong>Séances</strong><small>planning</small></div><span class="kpi-arrow">→</span></button>
+      <button class="ref-kpi kpi-orange" data-dashboard-tab="stats" aria-label="Ouvrir les statistiques et les notes"><span class="kpi-icon">▮</span><div><b>${avgAll===null?'—':avgAll.toFixed(1)+' /20'}</b><strong>Moyenne générale</strong><small>${at.rate===null?'À compléter':Math.round(at.rate)+'% présence'}</small></div><span class="kpi-arrow">→</span></button>
     </section>
     <section class="dashboard-grid reference-grid-top">
       <div class="reference-card chart-card"><div class="reference-card-head"><h3>▥ &nbsp; Performances par classe</h3><span>Cette année →</span></div><div class="class-bars">${classBars||'<div class="ref-empty">Ajoutez des classes et des notes pour afficher les performances.</div>'}</div></div>
@@ -273,6 +273,7 @@ function renderToday(){
       <div class="reference-card backup-reference"><div class="reference-card-head"><h3>☁ &nbsp; Sauvegarde & restauration</h3></div><p>Vos données restent sur cet appareil.</p><button class="btn btn-emerald" id="backupQuickBtn">Sauvegarder maintenant</button></div>
     </section>
     ${suggestions.length?`<section class="reference-alert"><b>À surveiller</b><span>${suggestions.length} signal(s) pédagogique(s) détecté(s)</span></section>`:''}`;
+  document.querySelectorAll('[data-dashboard-tab]').forEach(card=>card.addEventListener('click',()=>document.querySelector(`.tab[data-tab="${card.dataset.dashboardTab}"]`)?.click()));
   document.getElementById('qaPresence')?.addEventListener('click',()=>{haptic();openAttendanceSheet(now?.classId||state.classes[0]?.id,now?.id);});
   document.getElementById('qaDevoir')?.addEventListener('click',()=>{haptic();openHomeworkForm();});
   document.getElementById('qaNote')?.addEventListener('click',()=>{haptic();openGradeForm();});
