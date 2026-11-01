@@ -784,14 +784,15 @@ function renderTopbar(){
 }
 function renderAll(){renderTopbar();renderToday();renderStudents();renderSchedule();renderHomework();renderGrades();renderStats();updateFab();}
 function setupTabs(){
-  document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{haptic();
+  document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{haptic();document.body.classList.remove('sidebar-open');
     document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==`view-${tab.dataset.tab}`));
     state.currentTab=tab.dataset.tab;
     renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
-  document.getElementById('sidebarToggle')?.addEventListener('click',()=>{document.body.classList.toggle('sidebar-collapsed');});
+  document.getElementById('sidebarToggle')?.addEventListener('click',()=>{haptic();if(window.matchMedia('(max-width: 999px)').matches)document.body.classList.toggle('sidebar-open');else document.body.classList.toggle('sidebar-collapsed');});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('sidebar-open');});
   document.getElementById('globalSearch')?.addEventListener('input',e=>{state.studentsSearch=e.target.value.trim();const tab=document.querySelector('.tab[data-tab="students"]');if(state.currentTab!=='students'){tab?.click();}else renderStudents();});
   document.getElementById('topbarInsights').onclick=()=>{haptic();
     const tab=document.querySelector('.tab[data-tab="stats"]');
