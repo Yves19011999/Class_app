@@ -483,7 +483,7 @@ function openSettings(){
     <div class="settings-section"><div class="settings-title">Notifications</div><p class="muted">${window.ClassNativeNotifications?.available?'Rappels Android planifiés même lorsque Classe est fermée.':'Rappels lorsque l’application est ouverte.'}</p><button class="btn btn-ghost btn-block" id="notifBtn">${notif?'✓ Notifications 24/24 activées':'Activer les notifications 24/24'}</button></div>
     <div class="settings-section"><div class="settings-title">Sauvegarde</div><p class="muted">Garde une copie complète avant de changer de téléphone.</p><div class="settings-actions"><button class="btn btn-ghost" id="exportBtn">Exporter JSON</button><button class="btn btn-ghost" id="importBtn">Restaurer JSON</button></div></div>
     <div class="settings-section update-card"><div class="settings-title">Mise à jour sécurisée</div><p class="muted">Version ${APP_VERSION}. Exporte automatiquement tes données avant de vérifier la nouvelle version.</p><button class="btn btn-primary btn-block" id="safeUpdateBtn">Sauvegarder et vérifier la mise à jour</button></div>
-    <div class="settings-section"><div class="settings-title">Import / rapports</div><div class="settings-actions"><button class="btn btn-ghost" id="csvStudentsBtn">Importer élèves CSV</button><button class="btn btn-ghost" id="reportBtn">Rapport / PDF</button></div></div>
+    <div class="settings-section"><div class="settings-title">Import / rapports</div><div class="settings-actions"><button class="btn btn-ghost" id="csvStudentsBtn">Importer CSV élèves + notes</button><button class="btn btn-ghost" id="reportBtn">Rapport / PDF</button></div></div>
     <div class="settings-section"><div class="settings-title">État de l’application</div>${appHealth()}<p class="muted" style="margin-top:9px">Les données scolaires restent dans le stockage local de ce téléphone.</p></div>
     <div class="settings-section danger-zone"><div class="settings-title">Zone sensible</div><button class="btn btn-danger-outline btn-block" id="wipeBtn">Tout effacer</button></div>`);
   updateInstallButtons();
@@ -767,7 +767,31 @@ function parseCsv(text){
   return lines.map(line=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===sep&&!q){out.push(cur.trim());cur='';}else cur+=ch;}out.push(cur.trim());return out;});
 }
 async function importStudentsCsv(file){
-  try{const rows=parseCsv(await file.text());if(rows.length<2)throw new Error('vide');const header=rows[0].map(x=>x.toLowerCase());const nameIdx=Math.max(0,header.findIndex(x=>/nom|name/.test(x))),phoneIdx=header.findIndex(x=>/tel|phone/.test(x)),classIdx=header.findIndex(x=>/classe|class/.test(x));let added=0;for(const r of rows.slice(1)){const name=r[nameIdx]?.trim();if(!name)continue;let classId=classIdx>=0?r[classIdx]?.trim():'';let cls=state.classes.find(c=>c.name.toLowerCase()===classId.toLowerCase());if(!cls){cls=state.classes[0];}if(!cls)continue;await dbPut('students',{id:uid(),classId:cls.id,name,phone:phoneIdx>=0?(r[phoneIdx]||'').trim():'',note:'',photo:''});added++;}await loadAll();renderAll();showToast(`${added} élève(s) importé(s)`);}catch(e){console.error(e);showToast('CSV invalide ou impossible à lire','info');}}
+  try{
+    const rows=parseCsv(await file.text()); if(rows.length<2)throw new Error('vide');
+    const header=rows[0].map(x=>x.toLowerCase());
+    const idx=(pattern)=>header.findIndex(x=>pattern.test(x));
+    const nameIdx=Math.max(0,idx(/nom|name/)),phoneIdx=idx(/tel|phone/),classIdx=idx(/classe|class/),subjectIdx=idx(/mati[eè]re|subject/),subjectCoefIdx=idx(/coefficient\s*mati[eè]re|coef.*mati[eè]re/),labelIdx=idx(/[eé]valuation|evaluation|devoir|label/),valueIdx=idx(/note|value|score/),gradeCoefIdx=idx(/coefficient\s*note|coef.*note/),dateIdx=idx(/date/);
+    let added=0,gradeAdded=0;
+    for(const r of rows.slice(1)){
+      const name=r[nameIdx]?.trim(); if(!name)continue;
+      const className=(classIdx>=0?r[classIdx]:'6e').trim()||'Classe importée';
+      let cls=state.classes.find(c=>c.name.toLowerCase()===className.toLowerCase());
+      if(!cls){cls={id:uid(),name:className,subject:'',color:'#1677FF'};await dbPut('classes',cls);state.classes.push(cls);}
+      let student=state.students.find(s=>s.classId===cls.id&&s.name.trim().toLowerCase()===name.toLowerCase());
+      if(!student){student={id:uid(),classId:cls.id,name,phone:phoneIdx>=0?(r[phoneIdx]||'').trim():'',note:'',photo:''};await dbPut('students',student);state.students.push(student);added++;}
+      const subjectName=subjectIdx>=0?(r[subjectIdx]||'').trim():'';
+      if(subjectName&&valueIdx>=0&&(r[valueIdx]||'').trim()!==''){
+        let subject=state.subjects.find(s=>s.classId===cls.id&&s.name.toLowerCase()===subjectName.toLowerCase());
+        const subjectCoefficient=parseFloat(String(subjectCoefIdx>=0?r[subjectCoefIdx]:'1').replace(',','.'))||1;
+        if(!subject){subject={id:uid(),classId:cls.id,name:subjectName,coefficient:subjectCoefficient};await dbPut('subjects',subject);state.subjects.push(subject);}
+        const value=parseFloat(String(r[valueIdx]).replace(',','.')),gradeCoef=parseFloat(String(gradeCoefIdx>=0?r[gradeCoefIdx]:'1').replace(',','.'))||1,date=dateIdx>=0&&r[dateIdx]?r[dateIdx].trim():todayISO(),label=labelIdx>=0&&r[labelIdx]?r[labelIdx].trim():'Évaluation importée';
+        if(Number.isFinite(value)&&value>=0&&value<=20){const duplicate=state.grades.find(g=>g.studentId===student.id&&g.subjectId===subject.id&&g.label===label&&g.date===date);if(!duplicate){await dbPut('grades',{id:uid(),classId:cls.id,subjectId:subject.id,studentId:student.id,label,value,coef:gradeCoef,date});gradeAdded++;}}
+      }
+    }
+    await loadAll();renderAll();showToast(`${added} élève(s) et ${gradeAdded} note(s) importé(s)`);
+  }catch(e){console.error(e);showToast('CSV invalide ou impossible à lire','info');}
+}
 
 /* ---------- Settings: theme, notifications, PIN, CSV ---------- */
 async function hashPin(pin){if(globalThis.crypto?.subtle){const data=new TextEncoder().encode(pin);const buf=await crypto.subtle.digest('SHA-256',data);return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');}return btoa(unescape(encodeURIComponent(pin)));}
