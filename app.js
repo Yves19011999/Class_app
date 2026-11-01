@@ -815,6 +815,8 @@ function setupTabs(){
     renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
+  document.querySelectorAll('.side-link').forEach(link=>link.onclick=()=>{haptic();document.body.classList.remove('sidebar-open');const action=link.dataset.sideAction;if(action==='stats')document.querySelector('.tab[data-tab="stats"]')?.click();else if(action==='reports')openReportChooser();else if(action==='settings')openSettings();else if(action==='attendance'){document.querySelector('.tab[data-tab="today"]')?.click();setTimeout(()=>openAttendanceSheet(state.classes[0]?.id),0);}});
+  document.querySelector('.pro-button')?.addEventListener('click',()=>{haptic();showToast('Espace Pro bientôt disponible','info');});
   document.getElementById('sidebarToggle')?.addEventListener('click',()=>{haptic();const touchDevice=window.matchMedia('(pointer: coarse)').matches||window.innerWidth<1000;if(touchDevice)document.body.classList.toggle('sidebar-open');else document.body.classList.toggle('sidebar-collapsed');});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('sidebar-open');});
   document.getElementById('globalSearch')?.addEventListener('input',e=>{state.studentsSearch=e.target.value.trim();const tab=document.querySelector('.tab[data-tab="students"]');if(state.currentTab!=='students'){tab?.click();}else renderStudents();});
