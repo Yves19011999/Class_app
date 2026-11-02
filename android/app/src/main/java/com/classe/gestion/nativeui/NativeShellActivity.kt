@@ -38,6 +38,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,6 +80,8 @@ private val destinations = listOf(
 @Composable
 fun NativeClassApp() {
     var selected by remember { mutableStateOf("Tableau de bord") }
+    val context = LocalContext.current
+    val snapshot = remember { NativeRepository(NativeDatabase(context)).snapshot() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val content: @Composable (Boolean) -> Unit = { compact ->
@@ -94,7 +97,7 @@ fun NativeClassApp() {
             },
             containerColor = Color(0xFFF4F8FF)
         ) { padding ->
-            NativeContent(selected, Modifier.padding(padding))
+            NativeContent(selected, snapshot, Modifier.padding(padding))
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -147,16 +150,16 @@ private fun DrawerContent(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun NativeContent(selected: String, modifier: Modifier = Modifier) {
+private fun NativeContent(selected: String, snapshot: NativeSnapshot, modifier: Modifier = Modifier) {
     AnimatedContent(targetState = selected, label = "native-navigation", modifier = modifier.fillMaxSize()) { destination ->
-        if (destination == "Tableau de bord") DashboardNative()
-        else if (destination == "Audit IA local") AuditNative()
+        if (destination == "Tableau de bord") DashboardNative(snapshot)
+        else if (destination == "Audit IA local") AuditNative(snapshot)
         else PlaceholderNative(destination)
     }
 }
 
 @Composable
-private fun DashboardNative() {
+private fun DashboardNative(snapshot: NativeSnapshot) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), modifier = Modifier.fillMaxWidth()) {
@@ -165,7 +168,7 @@ private fun DashboardNative() {
                 }
             }
         }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { NativeStat("Classes", "0", Color(0xFF1266DA), Modifier.weight(1f)); NativeStat("Élèves", "0", Color(0xFF0BAA67), Modifier.weight(1f)); NativeStat("Moyenne", "—", Color(0xFF7C32D8), Modifier.weight(1f)) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { NativeStat("Classes", snapshot.classes.toString(), Color(0xFF1266DA), Modifier.weight(1f)); NativeStat("Élèves", snapshot.students.toString(), Color(0xFF0BAA67), Modifier.weight(1f)); NativeStat("Notes", snapshot.grades.toString(), Color(0xFF7C32D8), Modifier.weight(1f)) } }
         item { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(18.dp)) { Text("Vue d’ensemble", fontWeight = FontWeight.Bold, fontSize = 18.sp); Spacer(Modifier.height(10.dp)); Text("La base native Compose est prête pour la migration Room et l’import sécurisé des données.", color = Color(0xFF53677F)); Divider(Modifier.padding(vertical = 14.dp)); Text("Audit local, notes pondérées et navigation adaptative seront raccordés ici.", color = Color(0xFF53677F)) } } }
     }
 }
@@ -177,8 +180,8 @@ private fun NativeStat(label: String, value: String, color: Color, modifier: Mod
 }
 
 @Composable
-private fun AuditNative() {
-    Column(Modifier.fillMaxSize().padding(24.dp)) { Text("Audit IA local", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Spacer(Modifier.height(8.dp)); Text("Analyse hors ligne compatible Android ancien et récent.", color = Color(0xFF53677F)); Spacer(Modifier.height(20.dp)); Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F7EC))) { Column(Modifier.padding(18.dp)) { Text("Indice de qualité", fontWeight = FontWeight.Bold); Text("Prêt à analyser", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF087F4E)); Text("Classes · élèves · matières · notes · devoirs · présences", color = Color(0xFF35634F)) } }; Spacer(Modifier.height(18.dp)); Button(onClick = {}) { Text("Lancer l’audit local") } }
+private fun AuditNative(snapshot: NativeSnapshot) {
+    Column(Modifier.fillMaxSize().padding(24.dp)) { Text("Audit IA local", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Spacer(Modifier.height(8.dp)); Text("Analyse hors ligne compatible Android ancien et récent.", color = Color(0xFF53677F)); Spacer(Modifier.height(20.dp)); Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F7EC))) { Column(Modifier.padding(18.dp)) { Text("Données natives", fontWeight = FontWeight.Bold); Text("${snapshot.classes} classes · ${snapshot.students} élèves", fontSize = 21.sp, fontWeight = FontWeight.Black, color = Color(0xFF087F4E)); Text("${snapshot.subjects} matières · ${snapshot.grades} notes · ${snapshot.assignments} devoirs", color = Color(0xFF35634F)) } }; Spacer(Modifier.height(18.dp)); Button(onClick = {}) { Text("Lancer l’audit local") } }
 }
 
 @Composable
