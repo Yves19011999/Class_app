@@ -98,7 +98,7 @@ fun NativeClassApp() {
             },
             containerColor = Color(0xFFF4F8FF)
         ) { padding ->
-            NativeContent(selected, snapshot, Modifier.padding(padding))
+            NativeContent(selected, NativeRepository(nativeDatabase), snapshot, Modifier.padding(padding))
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -151,12 +151,37 @@ private fun DrawerContent(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun NativeContent(selected: String, snapshot: NativeSnapshot, modifier: Modifier = Modifier) {
+private fun NativeContent(selected: String, repository: NativeRepository, snapshot: NativeSnapshot, modifier: Modifier = Modifier) {
     AnimatedContent(targetState = selected, label = "native-navigation", modifier = modifier.fillMaxSize()) { destination ->
         if (destination == "Tableau de bord") DashboardNative(snapshot)
         else if (destination == "Audit IA local") AuditNative(snapshot)
+        else if (destination == "Classes") NativeListScreen("Classes", repository.classes().map { "${it.name} · classe active" })
+        else if (destination == "Élèves") NativeListScreen("Élèves", repository.students().map { "${it.name} · ${it.className}" })
+        else if (destination == "Notes et moyennes") NativeListScreen("Notes et moyennes", repository.grades().map { "${it.studentName} · ${it.subjectName} · ${it.value}/20 · coef ${it.coefficient}" })
+        else if (destination == "Présences") NativeCountScreen("Présences", snapshot.attendance, "présence(s) enregistrée(s)")
+        else if (destination == "Devoirs") NativeCountScreen("Devoirs", snapshot.assignments, "devoir(s) enregistré(s)")
+        else if (destination == "Paramètres") NativeSettingsScreen(snapshot)
         else PlaceholderNative(destination)
     }
+}
+
+@Composable
+private fun NativeListScreen(title: String, rows: List<String>) {
+    LazyColumn(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("Données issues de la base Android native", color = Color(0xFF53677F)) }
+        if (rows.isEmpty()) item { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Text("Aucune donnée migrée pour le moment.", Modifier.padding(18.dp)) } }
+        items(rows) { row -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) { Text(row, Modifier.padding(16.dp), fontWeight = FontWeight.SemiBold) } }
+    }
+}
+
+@Composable
+private fun NativeCountScreen(title: String, count: Int, label: String) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(20.dp)) { Text(count.toString(), fontSize = 42.sp, fontWeight = FontWeight.Black, color = Color(0xFF1266DA)); Text(label, color = Color(0xFF53677F)) } } }
+}
+
+@Composable
+private fun NativeSettingsScreen(snapshot: NativeSnapshot) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("Paramètres natifs", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("Stockage local Android · sans serveur", color = Color(0xFF53677F)); Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(18.dp)) { Text("État de la migration", fontWeight = FontWeight.Bold); Text("${snapshot.classes} classes · ${snapshot.students} élèves · ${snapshot.grades} notes", color = Color(0xFF35634F)); Text("Les données seront conservées lors de la bascule native.", color = Color(0xFF53677F), modifier = Modifier.padding(top = 8.dp)) } } }
 }
 
 @Composable

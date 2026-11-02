@@ -71,6 +71,18 @@ class NativeRepository(private val database: NativeDatabase) {
         assignments = database.count("assignments"),
         attendance = database.count("attendance")
     )
+
+    fun classes(): List<NativeClassRow> = database.readableDatabase.rawQuery("SELECT id,name FROM classes ORDER BY name", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeClassRow(c.getString(0), c.getString(1))) }
+    }
+
+    fun students(): List<NativeStudentRow> = database.readableDatabase.rawQuery("SELECT s.name,COALESCE(c.name,'Classe non définie') FROM students s LEFT JOIN classes c ON c.id=s.class_id ORDER BY s.name", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeStudentRow(c.getString(0), c.getString(1))) }
+    }
+
+    fun grades(): List<NativeGradeRow> = database.readableDatabase.rawQuery("SELECT g.label,g.value,g.coefficient,COALESCE(s.name,'Élève'),COALESCE(sub.name,'Matière') FROM grades g LEFT JOIN students s ON s.id=g.student_id LEFT JOIN subjects sub ON sub.id=g.subject_id ORDER BY g.date DESC LIMIT 100", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeGradeRow(c.getString(0), c.getDouble(1), c.getDouble(2), c.getString(3), c.getString(4))) }
+    }
 }
 
 data class NativeSnapshot(
@@ -81,3 +93,7 @@ data class NativeSnapshot(
     val assignments: Int,
     val attendance: Int
 )
+
+data class NativeClassRow(val id: String, val name: String)
+data class NativeStudentRow(val name: String, val className: String)
+data class NativeGradeRow(val label: String, val value: Double, val coefficient: Double, val studentName: String, val subjectName: String)
