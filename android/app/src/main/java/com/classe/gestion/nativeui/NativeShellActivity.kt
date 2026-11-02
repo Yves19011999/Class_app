@@ -81,7 +81,8 @@ private val destinations = listOf(
 fun NativeClassApp() {
     var selected by remember { mutableStateOf("Tableau de bord") }
     val context = LocalContext.current
-    val snapshot = remember { NativeRepository(NativeDatabase(context)).snapshot() }
+    val nativeDatabase = remember { NativeDatabase(context).also { it.importPendingSnapshot() } }
+    val snapshot = remember { NativeRepository(nativeDatabase).snapshot() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val content: @Composable (Boolean) -> Unit = { compact ->

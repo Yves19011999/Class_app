@@ -147,6 +147,7 @@ async function loadAll(){
     dbGetAll('classes'),dbGetAll('subjects'),dbGetAll('students'),dbGetAll('schedule'),dbGetAll('homework'),dbGetAll('grades'),dbGetAll('attendance'),dbGetAll('sessions'),dbGetAll('settings')
   ]);
   Object.assign(state,{classes,subjects,students,schedule,homework,grades,attendance,sessions,settings});
+  if(globalThis.Capacitor) void syncNativeMigrationSnapshot();
 }
 
 async function migrateLegacySubjects(){
@@ -444,6 +445,18 @@ async function exportData(){
   const data={version:2,exportedAt:new Date().toISOString(),stores:{}};
   for(const name of Object.keys(STORES)) data.stores[name]=await dbGetAll(name);
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`classe-sauvegarde-${todayISO()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Sauvegarde exportée');
+}
+let nativeMigrationPlugin;
+function getNativeMigrationPlugin(){
+  if(nativeMigrationPlugin!==undefined)return nativeMigrationPlugin;
+  const cap=globalThis.Capacitor;
+  nativeMigrationPlugin=cap?.registerPlugin?cap.registerPlugin('NativeMigration'):null;
+  return nativeMigrationPlugin;
+}
+async function syncNativeMigrationSnapshot(){
+  const plugin=getNativeMigrationPlugin();
+  if(!plugin?.saveSnapshot)return;
+  try{await plugin.saveSnapshot({payload:JSON.stringify({version:2,exportedAt:new Date().toISOString(),stores:{classes:state.classes,subjects:state.subjects,students:state.students,schedule:state.schedule,homework:state.homework,grades:state.grades,attendance:state.attendance,sessions:state.sessions,settings:state.settings}})});}catch(error){console.debug('Native migration mirror unavailable',error);}
 }
 function openImportPicker(){ document.getElementById('importFileInput').click(); }
 async function importData(file){

@@ -4,9 +4,10 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import org.json.JSONObject
 
 /** Stockage natif minimal, sans serveur et compatible avec les anciens Android. */
-class NativeDatabase(context: Context) : SQLiteOpenHelper(context, "classe_native.db", null, 1) {
+class NativeDatabase(private val appContext: Context) : SQLiteOpenHelper(appContext, "classe_native.db", null, 1) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE classes(id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE students(id TEXT PRIMARY KEY, class_id TEXT, name TEXT NOT NULL, created_at INTEGER NOT NULL)")
@@ -32,6 +33,32 @@ class NativeDatabase(context: Context) : SQLiteOpenHelper(context, "classe_nativ
         writableDatabase.insertWithOnConflict("app_settings", null, ContentValues().apply {
             put("key", key); put("value", value)
         }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun importPendingSnapshot() {
+        val prefs = appContext.getSharedPreferences("native_migration", Context.MODE_PRIVATE)
+        val payload = prefs.getString("pending_snapshot", null) ?: return
+        val root = JSONObject(payload)
+        val stores = root.optJSONObject("stores") ?: return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val now = System.currentTimeMillis()
+            val classes = stores.optJSONArray("classes")
+            for (i in 0 until (classes?.length() ?: 0)) classes!!.getJSONObject(i).let { db.insertWithOnConflict("classes", null, ContentValues().apply { put("id", it.optString("id")); put("name", it.optString("name")); put("created_at", now) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            val students = stores.optJSONArray("students")
+            for (i in 0 until (students?.length() ?: 0)) students!!.getJSONObject(i).let { db.insertWithOnConflict("students", null, ContentValues().apply { put("id", it.optString("id")); put("class_id", it.optString("classId")); put("name", it.optString("name")); put("created_at", now) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            val subjects = stores.optJSONArray("subjects")
+            for (i in 0 until (subjects?.length() ?: 0)) subjects!!.getJSONObject(i).let { db.insertWithOnConflict("subjects", null, ContentValues().apply { put("id", it.optString("id")); put("class_id", it.optString("classId")); put("name", it.optString("name")); put("coefficient", it.optDouble("coefficient", 1.0)) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            val grades = stores.optJSONArray("grades")
+            for (i in 0 until (grades?.length() ?: 0)) grades!!.getJSONObject(i).let { db.insertWithOnConflict("grades", null, ContentValues().apply { put("id", it.optString("id")); put("student_id", it.optString("studentId")); put("subject_id", it.optString("subjectId")); put("label", it.optString("label")); put("value", it.optDouble("value", 0.0)); put("coefficient", it.optDouble("coef", 1.0)); put("date", it.optString("date")) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            val homework = stores.optJSONArray("homework")
+            for (i in 0 until (homework?.length() ?: 0)) homework!!.getJSONObject(i).let { db.insertWithOnConflict("assignments", null, ContentValues().apply { put("id", it.optString("id")); put("class_id", it.optString("classId")); put("title", it.optString("title")); put("due_date", it.optString("dueDate")); put("done", if (it.optBoolean("done")) 1 else 0) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            val attendance = stores.optJSONArray("attendance")
+            for (i in 0 until (attendance?.length() ?: 0)) attendance!!.getJSONObject(i).let { db.insertWithOnConflict("attendance", null, ContentValues().apply { put("id", it.optString("id")); put("student_id", it.optString("studentId")); put("date", it.optString("date")); put("status", it.optString("status")) }, SQLiteDatabase.CONFLICT_REPLACE) }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        prefs.edit().remove("pending_snapshot").putLong("last_import", System.currentTimeMillis()).apply()
     }
 }
 
