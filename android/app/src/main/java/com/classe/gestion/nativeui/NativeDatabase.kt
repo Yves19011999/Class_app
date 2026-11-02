@@ -77,12 +77,12 @@ class NativeRepository(private val database: NativeDatabase) {
         buildList { while (c.moveToNext()) add(NativeClassRow(c.getString(0), c.getString(1))) }
     }
 
-    fun students(): List<NativeStudentRow> = database.readableDatabase.rawQuery("SELECT s.name,COALESCE(c.name,'Classe non définie') FROM students s LEFT JOIN classes c ON c.id=s.class_id ORDER BY s.name", null).use { c ->
-        buildList { while (c.moveToNext()) add(NativeStudentRow(c.getString(0), c.getString(1))) }
+    fun students(): List<NativeStudentRow> = database.readableDatabase.rawQuery("SELECT s.id,s.name,COALESCE(c.name,'Classe non définie') FROM students s LEFT JOIN classes c ON c.id=s.class_id ORDER BY s.name", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeStudentRow(c.getString(0), c.getString(1), c.getString(2))) }
     }
 
-    fun subjects(): List<NativeSubjectRow> = database.readableDatabase.rawQuery("SELECT name,coefficient FROM subjects ORDER BY name", null).use { c ->
-        buildList { while (c.moveToNext()) add(NativeSubjectRow(c.getString(0), c.getDouble(1))) }
+    fun subjects(): List<NativeSubjectRow> = database.readableDatabase.rawQuery("SELECT id,name,coefficient FROM subjects ORDER BY name", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeSubjectRow(c.getString(0), c.getString(1), c.getDouble(2))) }
     }
 
     fun grades(): List<NativeGradeRow> = database.readableDatabase.rawQuery("SELECT g.label,g.value,g.coefficient,COALESCE(s.name,'Élève'),COALESCE(sub.name,'Matière') FROM grades g LEFT JOIN students s ON s.id=g.student_id LEFT JOIN subjects sub ON sub.id=g.subject_id ORDER BY g.date DESC LIMIT 100", null).use { c ->
@@ -92,6 +92,7 @@ class NativeRepository(private val database: NativeDatabase) {
     fun addClass(name: String) { database.writableDatabase.insert("classes", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("name", name); put("created_at", System.currentTimeMillis()) }) }
     fun addStudent(name: String, classId: String) { database.writableDatabase.insert("students", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("class_id", classId); put("name", name); put("created_at", System.currentTimeMillis()) }) }
     fun addSubject(name: String, classId: String, coefficient: Double) { database.writableDatabase.insert("subjects", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("class_id", classId); put("name", name); put("coefficient", coefficient) }) }
+    fun addGrade(studentId: String, subjectId: String, label: String, value: Double, coefficient: Double, date: String) { database.writableDatabase.insert("grades", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("student_id", studentId); put("subject_id", subjectId); put("label", label); put("value", value); put("coefficient", coefficient); put("date", date) }) }
 }
 
 data class NativeSnapshot(
@@ -104,6 +105,6 @@ data class NativeSnapshot(
 )
 
 data class NativeClassRow(val id: String, val name: String)
-data class NativeStudentRow(val name: String, val className: String)
-data class NativeSubjectRow(val name: String, val coefficient: Double)
+data class NativeStudentRow(val id: String, val name: String, val className: String)
+data class NativeSubjectRow(val id: String, val name: String, val coefficient: Double)
 data class NativeGradeRow(val label: String, val value: Double, val coefficient: Double, val studentName: String, val subjectName: String)

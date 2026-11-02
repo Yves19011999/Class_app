@@ -37,6 +37,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -163,7 +165,7 @@ private fun NativeContent(selected: String, repository: NativeRepository, snapsh
         else if (destination == "Classes") NativeListScreen("Classes", repository.classes().map { "${it.name} · classe active" }, "Ajouter une classe") { name -> repository.addClass(name); onDataChanged() }
         else if (destination == "Élèves") NativeListScreen("Élèves", repository.students().map { "${it.name} · ${it.className}" }, "Ajouter un élève") { name -> repository.classes().firstOrNull()?.let { repository.addStudent(name, it.id); onDataChanged() } }
         else if (destination == "Matières") NativeListScreen("Matières", repository.subjects().map { "${it.name} · coef ${it.coefficient}" }, "Ajouter une matière") { name -> repository.classes().firstOrNull()?.let { repository.addSubject(name, it.id, 1.0); onDataChanged() } }
-        else if (destination == "Notes et moyennes") NativeListScreen("Notes et moyennes", repository.grades().map { "${it.studentName} · ${it.subjectName} · ${it.value}/20 · coef ${it.coefficient}" })
+        else if (destination == "Notes et moyennes") NativeGradesScreen(repository, onDataChanged)
         else if (destination == "Présences") NativeCountScreen("Présences", snapshot.attendance, "présence(s) enregistrée(s)")
         else if (destination == "Devoirs") NativeCountScreen("Devoirs", snapshot.assignments, "devoir(s) enregistré(s)")
         else if (destination == "Paramètres") NativeSettingsScreen(snapshot)
@@ -186,6 +188,69 @@ private fun NativeListScreen(title: String, rows: List<String>, addLabel: String
 @Composable
 private fun NativeCountScreen(title: String, count: Int, label: String) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(20.dp)) { Text(count.toString(), fontSize = 42.sp, fontWeight = FontWeight.Black, color = Color(0xFF1266DA)); Text(label, color = Color(0xFF53677F)) } } }
+}
+
+@Composable
+private fun NativeGradesScreen(repository: NativeRepository, onDataChanged: () -> Unit) {
+    val students = remember { repository.students() }
+    val subjects = remember { repository.subjects() }
+    val grades = remember { repository.grades() }
+    var showForm by remember { mutableStateOf(false) }
+    var selectedStudent by remember { mutableStateOf(students.firstOrNull()) }
+    var selectedSubject by remember { mutableStateOf(subjects.firstOrNull()) }
+    var studentMenu by remember { mutableStateOf(false) }
+    var subjectMenu by remember { mutableStateOf(false) }
+    var label by remember { mutableStateOf("") }
+    var value by remember { mutableStateOf("") }
+    var coefficient by remember { mutableStateOf("1") }
+    val average = if (grades.isEmpty()) null else grades.sumOf { it.value * it.coefficient } / grades.sumOf { it.coefficient.coerceAtLeast(.01) }
+    if (showForm) {
+        AlertDialog(
+            onDismissRequest = { showForm = false },
+            title = { Text("Nouvelle évaluation") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box {
+                        TextButton(onClick = { studentMenu = true }) { Text(selectedStudent?.name ?: "Choisir un élève") }
+                        DropdownMenu(expanded = studentMenu, onDismissRequest = { studentMenu = false }) {
+                            students.forEach { student -> DropdownMenuItem(text = { Text("${student.name} · ${student.className}") }, onClick = { selectedStudent = student; studentMenu = false }) }
+                        }
+                    }
+                    Box {
+                        TextButton(onClick = { subjectMenu = true }) { Text(selectedSubject?.name ?: "Choisir une matière") }
+                        DropdownMenu(expanded = subjectMenu, onDismissRequest = { subjectMenu = false }) {
+                            subjects.forEach { subject -> DropdownMenuItem(text = { Text("${subject.name} · coef ${subject.coefficient}") }, onClick = { selectedSubject = subject; subjectMenu = false }) }
+                        }
+                    }
+                    TextField(value = label, onValueChange = { label = it }, label = { Text("Nom du devoir") }, singleLine = true)
+                    TextField(value = value, onValueChange = { value = it }, label = { Text("Note sur 20") }, singleLine = true)
+                    TextField(value = coefficient, onValueChange = { coefficient = it }, label = { Text("Coefficient du devoir") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val numericValue = value.toDoubleOrNull()
+                    val numericCoefficient = coefficient.toDoubleOrNull()
+                    if (selectedStudent != null && selectedSubject != null && label.isNotBlank() && numericValue != null && numericValue in 0.0..20.0 && numericCoefficient != null && numericCoefficient > 0) {
+                        repository.addGrade(selectedStudent!!.id, selectedSubject!!.id, label, numericValue, numericCoefficient, java.time.LocalDate.now().toString())
+                        showForm = false
+                        onDataChanged()
+                    }
+                }) { Text("Enregistrer") }
+            },
+            dismissButton = { TextButton(onClick = { showForm = false }) { Text("Annuler") } }
+        )
+    }
+    LazyColumn(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column { Text("Notes et moyennes", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("Saisie native avec coefficients", color = Color(0xFF53677F)) }
+                Button(onClick = { showForm = true }) { Text("Nouvelle note") }
+            }
+        }
+        item { Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE9F2FF))) { Column(Modifier.padding(18.dp)) { Text("Moyenne pondérée", fontWeight = FontWeight.Bold); Text(average?.let { "%.2f / 20".format(it) } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color(0xFF1266DA)) } } }
+        items(grades) { grade -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) { Text("${grade.studentName} · ${grade.subjectName} · ${grade.label}: ${grade.value}/20 · coef ${grade.coefficient}", Modifier.padding(16.dp)) } }
+    }
 }
 
 @Composable
