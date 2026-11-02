@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONObject
+import java.util.UUID
 
 /** Stockage natif minimal, sans serveur et compatible avec les anciens Android. */
 class NativeDatabase(private val appContext: Context) : SQLiteOpenHelper(appContext, "classe_native.db", null, 1) {
@@ -83,6 +84,9 @@ class NativeRepository(private val database: NativeDatabase) {
     fun grades(): List<NativeGradeRow> = database.readableDatabase.rawQuery("SELECT g.label,g.value,g.coefficient,COALESCE(s.name,'Élève'),COALESCE(sub.name,'Matière') FROM grades g LEFT JOIN students s ON s.id=g.student_id LEFT JOIN subjects sub ON sub.id=g.subject_id ORDER BY g.date DESC LIMIT 100", null).use { c ->
         buildList { while (c.moveToNext()) add(NativeGradeRow(c.getString(0), c.getDouble(1), c.getDouble(2), c.getString(3), c.getString(4))) }
     }
+
+    fun addClass(name: String) { database.writableDatabase.insert("classes", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("name", name); put("created_at", System.currentTimeMillis()) }) }
+    fun addStudent(name: String, classId: String) { database.writableDatabase.insert("students", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("class_id", classId); put("name", name); put("created_at", System.currentTimeMillis()) }) }
 }
 
 data class NativeSnapshot(

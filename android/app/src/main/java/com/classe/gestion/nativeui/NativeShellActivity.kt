@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -34,6 +35,8 @@ import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -82,7 +85,8 @@ fun NativeClassApp() {
     var selected by remember { mutableStateOf("Tableau de bord") }
     val context = LocalContext.current
     val nativeDatabase = remember { NativeDatabase(context).also { it.importPendingSnapshot() } }
-    val snapshot = remember { NativeRepository(nativeDatabase).snapshot() }
+    val repository = remember { NativeRepository(nativeDatabase) }
+    var snapshot by remember { mutableStateOf(repository.snapshot()) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val content: @Composable (Boolean) -> Unit = { compact ->
@@ -98,7 +102,7 @@ fun NativeClassApp() {
             },
             containerColor = Color(0xFFF4F8FF)
         ) { padding ->
-            NativeContent(selected, NativeRepository(nativeDatabase), snapshot, Modifier.padding(padding))
+            NativeContent(selected, repository, snapshot, Modifier.padding(padding)) { snapshot = repository.snapshot() }
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -151,12 +155,12 @@ private fun DrawerContent(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun NativeContent(selected: String, repository: NativeRepository, snapshot: NativeSnapshot, modifier: Modifier = Modifier) {
+private fun NativeContent(selected: String, repository: NativeRepository, snapshot: NativeSnapshot, modifier: Modifier = Modifier, onDataChanged: () -> Unit = {}) {
     AnimatedContent(targetState = selected, label = "native-navigation", modifier = modifier.fillMaxSize()) { destination ->
         if (destination == "Tableau de bord") DashboardNative(snapshot)
         else if (destination == "Audit IA local") AuditNative(snapshot)
-        else if (destination == "Classes") NativeListScreen("Classes", repository.classes().map { "${it.name} · classe active" })
-        else if (destination == "Élèves") NativeListScreen("Élèves", repository.students().map { "${it.name} · ${it.className}" })
+        else if (destination == "Classes") NativeListScreen("Classes", repository.classes().map { "${it.name} · classe active" }, "Ajouter une classe") { name -> repository.addClass(name); onDataChanged() }
+        else if (destination == "Élèves") NativeListScreen("Élèves", repository.students().map { "${it.name} · ${it.className}" }, "Ajouter un élève") { name -> repository.classes().firstOrNull()?.let { repository.addStudent(name, it.id); onDataChanged() } }
         else if (destination == "Notes et moyennes") NativeListScreen("Notes et moyennes", repository.grades().map { "${it.studentName} · ${it.subjectName} · ${it.value}/20 · coef ${it.coefficient}" })
         else if (destination == "Présences") NativeCountScreen("Présences", snapshot.attendance, "présence(s) enregistrée(s)")
         else if (destination == "Devoirs") NativeCountScreen("Devoirs", snapshot.assignments, "devoir(s) enregistré(s)")
@@ -166,9 +170,12 @@ private fun NativeContent(selected: String, repository: NativeRepository, snapsh
 }
 
 @Composable
-private fun NativeListScreen(title: String, rows: List<String>) {
+private fun NativeListScreen(title: String, rows: List<String>, addLabel: String? = null, onAdd: (String) -> Unit = {}) {
+    var showDialog by remember { mutableStateOf(false) }
+    var value by remember { mutableStateOf("") }
+    if (showDialog) AlertDialog(onDismissRequest = { showDialog = false }, title = { Text(addLabel ?: "Ajouter") }, text = { TextField(value = value, onValueChange = { value = it }, label = { Text("Nom") }, singleLine = true) }, confirmButton = { TextButton(onClick = { if (value.trim().isNotEmpty()) { onAdd(value.trim()); value = ""; showDialog = false } }) { Text("Enregistrer") } }, dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Annuler") } })
     LazyColumn(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("Données issues de la base Android native", color = Color(0xFF53677F)) }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Column { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("Données issues de la base Android native", color = Color(0xFF53677F)) }; if (addLabel != null) Button(onClick = { showDialog = true }) { Text("Nouveau") } } }
         if (rows.isEmpty()) item { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Text("Aucune donnée migrée pour le moment.", Modifier.padding(18.dp)) } }
         items(rows) { row -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) { Text(row, Modifier.padding(16.dp), fontWeight = FontWeight.SemiBold) } }
     }
