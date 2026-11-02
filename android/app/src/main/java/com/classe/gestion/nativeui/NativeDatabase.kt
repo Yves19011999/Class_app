@@ -81,12 +81,17 @@ class NativeRepository(private val database: NativeDatabase) {
         buildList { while (c.moveToNext()) add(NativeStudentRow(c.getString(0), c.getString(1))) }
     }
 
+    fun subjects(): List<NativeSubjectRow> = database.readableDatabase.rawQuery("SELECT name,coefficient FROM subjects ORDER BY name", null).use { c ->
+        buildList { while (c.moveToNext()) add(NativeSubjectRow(c.getString(0), c.getDouble(1))) }
+    }
+
     fun grades(): List<NativeGradeRow> = database.readableDatabase.rawQuery("SELECT g.label,g.value,g.coefficient,COALESCE(s.name,'Élève'),COALESCE(sub.name,'Matière') FROM grades g LEFT JOIN students s ON s.id=g.student_id LEFT JOIN subjects sub ON sub.id=g.subject_id ORDER BY g.date DESC LIMIT 100", null).use { c ->
         buildList { while (c.moveToNext()) add(NativeGradeRow(c.getString(0), c.getDouble(1), c.getDouble(2), c.getString(3), c.getString(4))) }
     }
 
     fun addClass(name: String) { database.writableDatabase.insert("classes", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("name", name); put("created_at", System.currentTimeMillis()) }) }
     fun addStudent(name: String, classId: String) { database.writableDatabase.insert("students", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("class_id", classId); put("name", name); put("created_at", System.currentTimeMillis()) }) }
+    fun addSubject(name: String, classId: String, coefficient: Double) { database.writableDatabase.insert("subjects", null, ContentValues().apply { put("id", UUID.randomUUID().toString()); put("class_id", classId); put("name", name); put("coefficient", coefficient) }) }
 }
 
 data class NativeSnapshot(
@@ -100,4 +105,5 @@ data class NativeSnapshot(
 
 data class NativeClassRow(val id: String, val name: String)
 data class NativeStudentRow(val name: String, val className: String)
+data class NativeSubjectRow(val name: String, val coefficient: Double)
 data class NativeGradeRow(val label: String, val value: Double, val coefficient: Double, val studentName: String, val subjectName: String)

@@ -72,6 +72,7 @@ private val destinations = listOf(
     NativeDestination("Planning", "PRINCIPAL"),
     NativeDestination("Présences", "ÉVALUATIONS"),
     NativeDestination("Devoirs", "ÉVALUATIONS"),
+    NativeDestination("Matières", "ÉVALUATIONS"),
     NativeDestination("Notes et moyennes", "ÉVALUATIONS"),
     NativeDestination("Audit IA local", "ANALYSE"),
     NativeDestination("Rapports", "ANALYSE"),
@@ -161,6 +162,7 @@ private fun NativeContent(selected: String, repository: NativeRepository, snapsh
         else if (destination == "Audit IA local") AuditNative(snapshot)
         else if (destination == "Classes") NativeListScreen("Classes", repository.classes().map { "${it.name} · classe active" }, "Ajouter une classe") { name -> repository.addClass(name); onDataChanged() }
         else if (destination == "Élèves") NativeListScreen("Élèves", repository.students().map { "${it.name} · ${it.className}" }, "Ajouter un élève") { name -> repository.classes().firstOrNull()?.let { repository.addStudent(name, it.id); onDataChanged() } }
+        else if (destination == "Matières") NativeListScreen("Matières", repository.subjects().map { "${it.name} · coef ${it.coefficient}" }, "Ajouter une matière") { name -> repository.classes().firstOrNull()?.let { repository.addSubject(name, it.id, 1.0); onDataChanged() } }
         else if (destination == "Notes et moyennes") NativeListScreen("Notes et moyennes", repository.grades().map { "${it.studentName} · ${it.subjectName} · ${it.value}/20 · coef ${it.coefficient}" })
         else if (destination == "Présences") NativeCountScreen("Présences", snapshot.attendance, "présence(s) enregistrée(s)")
         else if (destination == "Devoirs") NativeCountScreen("Devoirs", snapshot.assignments, "devoir(s) enregistré(s)")
