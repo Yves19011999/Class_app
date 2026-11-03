@@ -1,5 +1,5 @@
-const CACHE_NAME = 'classe-cache-v4-9-3';
-const CORE_ASSETS = ['./','./index.html','./app.js','./class-ultrareview-ui-v4.9.3.css','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CACHE_NAME = 'classe-cache-v4-9-13-senior';
+const CORE_ASSETS = ['./','./index.html','./app.js','./class-ultrareview-ui-v4.9.3.css','./class-senior-redesign.css','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
