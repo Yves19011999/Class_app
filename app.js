@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 4;
-const APP_VERSION = '4.9.20';
+const APP_VERSION = '4.9.21';
 let db = null;
 
 const STORES = {
@@ -303,7 +303,7 @@ function renderToday(){
     <section class="dashboard-grid reference-grid-top">
       <div class="reference-card chart-card"><div class="reference-card-head"><h3>▥ &nbsp; Performances par classe</h3><span>Cette année →</span></div><div class="class-bars">${classBars||'<div class="ref-empty">Ajoutez des classes et des notes pour afficher les performances.</div>'}</div></div>
       <div class="reference-card chart-card trend-card"><div class="reference-card-head"><h3>▰ &nbsp; Évolution des moyennes</h3><span>4 trimestres →</span></div><div class="trend-placeholder">${trendGraph}</div><div class="trend-legend">${trendClasses||'<span>Aucune classe</span>'}</div></div>
-      <div class="reference-card quick-reference"><div class="reference-card-head"><h3>⚡ &nbsp; Actions rapides</h3></div><div class="reference-quick-grid"><button id="qaPresence"><span>✓</span>Faire<br>l’appel</button><button id="qaEleve"><span>♟</span>Ajouter<br>un élève</button><button id="scheduleQuickBtn"><span>▣</span>Créer<br>une séance</button><button id="qaNote"><span>✎</span>Saisir<br>les notes</button><button id="reportQuickBtn"><span>▥</span>Voir<br>les rapports</button><button id="importQuickBtn"><span>＋</span>Importer<br>des données</button><button id="exportQuickBtn"><span>⇩</span>Exporter<br>les résultats</button></div></div>
+<div class="reference-card quick-reference"><div class="reference-card-head"><h3>⚡ &nbsp; Actions rapides</h3></div><div class="reference-quick-grid"><button id="qaPresence"><span>✓</span>Faire<br>l’appel</button><button id="qaEleve"><span>♟</span>Ajouter<br>un élève</button><button id="scheduleQuickBtn"><span>▣</span>Créer<br>une séance</button><button id="qaDevoir"><span>▤</span>Créer<br>un devoir</button><button id="qaNote"><span>✎</span>Saisir<br>les notes</button><button id="reportQuickBtn"><span>▥</span>Voir<br>les rapports</button><button id="importQuickBtn"><span>＋</span>Importer<br>des données</button><button id="exportQuickBtn"><span>⇩</span>Exporter<br>les résultats</button></div></div>
     </section>
     <section class="dashboard-grid reference-grid-middle">
       <div class="reference-card"><div class="reference-card-head purple-head"><h3>▣ &nbsp; Prochaines échéances</h3><button class="link" id="homeworkQuickBtn">Voir tout →</button></div>${dueRows||'<div class="ref-empty">Aucune échéance en attente.</div>'}</div>
@@ -885,7 +885,7 @@ function setupTabs(){
     renderTopbar(); updateFab(); window.scrollTo(0,0);
   });
   document.getElementById('topbarSettings').onclick=()=>{haptic();openSettings();};
-  document.querySelectorAll('.side-link').forEach(link=>link.onclick=()=>{haptic();document.body.classList.remove('sidebar-open');const action=link.dataset.sideAction;if(action==='stats')document.querySelector('.tab[data-tab="stats"]')?.click();else if(action==='audit')openLocalAudit();else if(action==='reports')openReportChooser();else if(action==='settings'||action==='import')openSettings();else if(action==='backup')exportData();else if(action==='help')openSheet(`<div class="sheet-header"><div><h3>Aide &amp; Support</h3><p class="sheet-kicker">Classe · Gestion de classe</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><div class="note-card"><b>Besoin d’aide ?</b><p>Utilise la recherche, le menu latéral et les raccourcis du dashboard pour accéder rapidement aux classes, élèves, devoirs et notes.</p><p class="muted">Les données restent enregistrées localement sur cet appareil.</p></div>`);else if(action==='attendance'){document.querySelector('.tab[data-tab="today"]')?.click();setTimeout(()=>openAttendanceSheet(state.classes[0]?.id),0);}});
+  document.querySelectorAll('.side-link').forEach(link=>link.onclick=()=>{haptic();document.body.classList.remove('sidebar-open');const action=link.dataset.sideAction;if(action==='classes')openClassManager();else if(action==='stats')document.querySelector('.tab[data-tab="stats"]')?.click();else if(action==='audit')openLocalAudit();else if(action==='reports')openReportChooser();else if(action==='settings'||action==='import')openSettings();else if(action==='backup')exportData();else if(action==='help')openSheet(`<div class="sheet-header"><div><h3>Aide &amp; Support</h3><p class="sheet-kicker">Classe · Gestion de classe</p></div><button class="btn-icon" onclick="closeSheet()" aria-label="Fermer">×</button></div><div class="note-card"><b>Besoin d’aide ?</b><p>Utilise la recherche, le menu latéral et les raccourcis du dashboard pour accéder rapidement aux classes, élèves, devoirs et notes.</p><p class="muted">Les données restent enregistrées localement sur cet appareil.</p></div>`);else if(action==='attendance'){document.querySelector('.tab[data-tab="today"]')?.click();setTimeout(()=>openAttendanceSheet(state.classes[0]?.id),0);}});
   document.querySelector('.pro-button')?.addEventListener('click',()=>{haptic();openProGate();});
   document.getElementById('sidebarToggle')?.addEventListener('click',()=>{haptic();const touchDevice=window.matchMedia('(pointer: coarse)').matches||window.innerWidth<1000;if(touchDevice)document.body.classList.toggle('sidebar-open');else document.body.classList.toggle('sidebar-collapsed');});
   document.addEventListener('click',e=>{if(!document.body.classList.contains('sidebar-open'))return;if(e.target.closest('.tabbar')||e.target.closest('#sidebarToggle'))return;document.body.classList.remove('sidebar-open');});
@@ -920,14 +920,14 @@ function applyTheme(){if(localStorage.getItem('classe_theme')==='dark')document.
 async function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   try{
-    const marker='classe_theme_reset_4918';
+    const marker='classe_functional_reset_4921';
     if(localStorage.getItem(marker)!=='1'){
       const registrations=await navigator.serviceWorker.getRegistrations();
       await Promise.all(registrations.map(reg=>reg.unregister()));
       if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(key=>caches.delete(key))); }
       localStorage.setItem(marker,'1');
     }
-    const registration=await navigator.serviceWorker.register('./sw.js?v=4915',{updateViaCache:'none'});
+    const registration=await navigator.serviceWorker.register('./sw.js?v=4921',{updateViaCache:'none'});
     await registration.update();
   }catch(e){ console.warn('SW:',e); }
 }
