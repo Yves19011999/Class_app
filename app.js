@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 4;
-const APP_VERSION = '4.9.3';
+const APP_VERSION = '4.9.15';
 let db = null;
 
 const STORES = {
@@ -890,7 +890,20 @@ function updateFab(){
   else{fab.classList.add('hidden');fab.onclick=null;}
 }
 function applyTheme(){if(localStorage.getItem('classe_theme')==='dark')document.documentElement.classList.add('dark');}
-function registerServiceWorker(){if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));}
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return;
+  try{
+    const marker='classe_theme_reset_4915';
+    if(localStorage.getItem(marker)!=='1'){
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(reg=>reg.unregister()));
+      if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(key=>caches.delete(key))); }
+      localStorage.setItem(marker,'1');
+    }
+    const registration=await navigator.serviceWorker.register('./sw.js?v=4915',{updateViaCache:'none'});
+    await registration.update();
+  }catch(e){ console.warn('SW:',e); }
+}
 async function enableNotifications(){
   try{
     if(window.ClassNativeNotifications?.available){
