@@ -6,7 +6,7 @@ const root = process.cwd();
 const web = join(root, 'www');
 await rm(web, { recursive: true, force: true });
 await mkdir(web, { recursive: true });
-for (const file of ['index.html','app.js','manifest.json','sw.js','icon-192.png','icon-512.png','class-ultrareview-ui-v4.9.3.css','class-senior-redesign.css']) {
+for (const file of ['index.html','app.js','manifest.json','sw.js','icon-192.png','icon-512.png','class-senior-redesign.css']) {
   await cp(join(root, file), join(web, file));
 }
 await build({
