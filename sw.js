@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classe-cache-v4-9-15-senior';
+const CACHE_NAME = 'classe-cache-v4-9-17-black-layout';
 const CORE_ASSETS = ['./','./index.html','./app.js','./class-senior-redesign.css','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
