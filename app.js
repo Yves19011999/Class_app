@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 4;
-const APP_VERSION = '4.9.16';
+const APP_VERSION = '4.9.19';
 let db = null;
 
 const STORES = {
@@ -82,6 +82,24 @@ async function installApp(){
 }
 
 
+/* ---------- Cyberpunk UI soundscape ---------- */
+const UI_SOUND_KEY = 'classe_ui_sounds';
+let uiAudioContext = null;
+function uiSoundsEnabled(){ return localStorage.getItem(UI_SOUND_KEY)!=='0'; }
+function getUiAudio(){
+  if(!uiAudioContext){ const C=window.AudioContext||window.webkitAudioContext; if(!C)return null; uiAudioContext=new C(); }
+  if(uiAudioContext.state==='suspended') uiAudioContext.resume().catch(()=>{});
+  return uiAudioContext;
+}
+function playUiSound(type='click'){
+  if(!uiSoundsEnabled())return;
+  const c=getUiAudio(); if(!c)return;
+  const now=c.currentTime, master=c.createGain(), loud=type==='error'?.045:.028;
+  master.gain.setValueAtTime(.0001,now); master.gain.exponentialRampToValueAtTime(loud,now+.008); master.gain.exponentialRampToValueAtTime(.0001,now+(type==='open'?.20:.12)); master.connect(c.destination);
+  const tones={click:[[520,.045,'square'],[780,.035,'sine']],open:[[220,.07,'sine'],[440,.12,'triangle'],[880,.08,'sine']],success:[[440,.07,'sine'],[660,.08,'sine'],[990,.13,'triangle']],error:[[190,.13,'sawtooth'],[120,.16,'sawtooth']],close:[[460,.06,'sine'],[280,.10,'triangle']]}[type]||[[520,.05,'square']];
+  tones.forEach(([freq,duration,wave],i)=>{const o=c.createOscillator(),g=c.createGain(),t=now+i*.035;o.type=wave;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*(type==='error'?.72:1.08),t+duration);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(1,t+.006);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(master);o.start(t);o.stop(t+duration+.02);});
+}
+function setUiSounds(enabled){ localStorage.setItem(UI_SOUND_KEY,enabled?'1':'0'); if(enabled)playUiSound('success'); }
 function haptic(ms=12){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 function shareApp(){
   const data={title:getAppName(),text:'Classe — gestion de classe hors-ligne',url:location.href};
@@ -199,8 +217,8 @@ function showToast(msg,icon='check'){
   el.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${icons[icon]||icons.check}</svg><span>${escapeHtml(msg)}</span>`;
   el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2400);
 }
-function openSheet(html){ document.getElementById('sheet').innerHTML='<div class="sheet-handle"></div>'+html; document.getElementById('sheetOverlay').classList.add('open'); }
-function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); }
+function openSheet(html){ document.getElementById('sheet').innerHTML='<div class="sheet-handle"></div>'+html; document.getElementById('sheetOverlay').classList.add('open'); playUiSound('open'); }
+function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); playUiSound('close'); }
 document.getElementById('sheetOverlay').addEventListener('click',e=>{ if(e.target.id==='sheetOverlay') closeSheet(); });
 
 function getAppName(){ return localStorage.getItem('classe_app_name') || 'Classe · Gestion de classe'; }
@@ -494,6 +512,7 @@ function openSettings(){
     <div class="settings-section"><div class="settings-title">Apparence</div><div class="settings-actions"><button class="btn ${!dark?'btn-primary':'btn-ghost'}" id="themeLight">☀️ Clair</button><button class="btn ${dark?'btn-primary':'btn-ghost'}" id="themeDark">🌙 Sombre</button></div></div>
     <div class="settings-section"><div class="settings-title">Version Pro</div><p class="muted">Accès administrateur protégé par mot de passe. ${proConfigured?'Le mot de passe est configuré sur cet appareil.':'La première ouverture utilisera le mot de passe temporaire indiqué.'}</p><button class="btn btn-ghost btn-block" id="proPasswordBtn">${proConfigured?'Modifier le mot de passe Pro':'Configurer l’accès Pro'}</button></div>
     <div class="settings-section"><div class="settings-title">Sécurité</div><p class="muted">Protège les données locales avec un PIN sur cet appareil.</p><div class="settings-actions"><button class="btn btn-ghost" id="pinBtn">${pin?'Changer le PIN':'Créer un PIN'}</button>${pin?'<button class="btn btn-ghost" id="removePinBtn">Désactiver</button>':''}</div></div>
+    <div class="settings-section"><div class="settings-title">Sons d’interface</div><p class="muted">Effets cyberpunk futuristes pour les clics, validations et ouvertures de panneaux.</p><button class="btn ${uiSoundsEnabled()?'btn-primary':'btn-ghost'} btn-block" id="uiSoundsBtn">${uiSoundsEnabled()?'🔊 Sons activés':'🔇 Sons désactivés'}</button></div>
     <div class="settings-section"><div class="settings-title">Notifications</div><p class="muted">${window.ClassNativeNotifications?.available?'Rappels Android planifiés même lorsque Classe est fermée.':'Rappels lorsque l’application est ouverte.'}</p><button class="btn btn-ghost btn-block" id="notifBtn">${notif?'✓ Notifications 24/24 activées':'Activer les notifications 24/24'}</button></div>
     <div class="settings-section"><div class="settings-title">Sauvegarde</div><p class="muted">Garde une copie complète avant de changer de téléphone.</p><div class="settings-actions"><button class="btn btn-ghost" id="exportBtn">Exporter JSON</button><button class="btn btn-ghost" id="importBtn">Restaurer JSON</button></div></div>
     <div class="settings-section update-card"><div class="settings-title">Mise à jour sécurisée</div><p class="muted">Version ${APP_VERSION}. Exporte automatiquement tes données avant de vérifier la nouvelle version.</p><button class="btn btn-primary btn-block" id="safeUpdateBtn">Sauvegarder et vérifier la mise à jour</button></div>
@@ -509,6 +528,7 @@ function openSettings(){
   document.getElementById('safeUpdateBtn').onclick=prepareSafeUpdate;
   document.getElementById('csvStudentsBtn').onclick=()=>document.getElementById('studentCsvInput').click();document.getElementById('reportBtn').onclick=openReportChooser;
   document.getElementById('notifBtn').onclick=enableNotifications;
+  document.getElementById('uiSoundsBtn').onclick=()=>{const enabled=!uiSoundsEnabled();setUiSounds(enabled);openSettings();};
   document.getElementById('wipeBtn').onclick=async()=>{if(!confirm('Supprimer TOUTES les données locales ? Fais une sauvegarde avant.'))return;for(const n of Object.keys(STORES))await clearStore(n);await dbPut('settings',{key:'seeded',value:true});await loadAll();await syncNativeNotifications();renderAll();closeSheet();showToast('Toutes les données ont été effacées');};
 }
 
@@ -851,6 +871,13 @@ function renderTopbar(){
 }
 function renderAll(){renderTopbar();renderToday();renderStudents();renderSchedule();renderHomework();renderGrades();renderStats();updateFab();}
 function setupTabs(){
+  document.addEventListener('click',e=>{
+    const control=e.target.closest('button,[role="button"],.tab,.side-link');
+    if(!control||control.disabled||control.id==='uiSoundsBtn')return;
+    const text=(control.textContent||'').toLowerCase();
+    const type=/enregistr|activer|valider|confirmer|terminer|export|import|sauvegarder|déverrouiller|ouvrir/.test(text)?'success':/supprimer|effacer|refus|erreur|désactiver/.test(text)?'error':'click';
+    playUiSound(type);
+  },{passive:true});
   document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{haptic();document.body.classList.remove('sidebar-open');
     document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==`view-${tab.dataset.tab}`));
