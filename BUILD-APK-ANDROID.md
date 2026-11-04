@@ -26,4 +26,4 @@ Cette version contient un projet Android Capacitor et un workflow GitHub Actions
 
 - Nom : Classe
 - Application ID : `com.classe.gestion`
-- Version : 4.5.0
+- Version : 4.9.3

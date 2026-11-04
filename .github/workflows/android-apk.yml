@@ -37,6 +37,9 @@ jobs:
       - name: Créer le projet Android Capacitor
         run: npx cap add android
 
+      - name: Générer les icônes Android
+        run: npm run android:icons
+
       - name: Synchroniser Android
         run: npx cap sync android
 

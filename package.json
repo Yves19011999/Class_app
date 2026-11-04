@@ -1,11 +1,12 @@
 {
   "name": "classe-gestion-classe",
-  "version": "4.8.0",
+  "version": "4.9.21",
   "private": true,
   "description": "Classe — gestion de classe offline-first, PWA et Android.",
   "scripts": {
     "prepare:web": "node copy-web.mjs",
-    "android:add": "npx cap add android && npm run android:permissions",
+    "android:add": "npx cap add android && npm run android:icons && npm run android:permissions",
+    "android:icons": "npx capacitor-assets generate --android",
     "android:permissions": "node scripts/ensure-android-permissions.mjs",
     "android:signing": "node scripts/configure-android-signing.mjs",
     "android:version": "node scripts/configure-android-version.mjs",
@@ -16,9 +17,10 @@
     "@capacitor/android": "^7.4.0",
     "@capacitor/core": "^7.4.0",
     "@capacitor/local-notifications": "^7.0.7",
-    "jspdf": "^3.0.4"
+    "jspdf": "^4.2.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^7.4.0",
     "esbuild": "^0.25.12",
     "typescript": "^5.9.3"
