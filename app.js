@@ -893,7 +893,7 @@ function applyTheme(){if(localStorage.getItem('classe_theme')==='dark')document.
 async function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   try{
-    const marker='classe_theme_reset_4916';
+    const marker='classe_theme_reset_4918';
     if(localStorage.getItem(marker)!=='1'){
       const registrations=await navigator.serviceWorker.getRegistrations();
       await Promise.all(registrations.map(reg=>reg.unregister()));
