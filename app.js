@@ -5,7 +5,7 @@
 
 const DB_NAME = 'classe_db';
 const DB_VERSION = 4;
-const APP_VERSION = '4.9.19';
+const APP_VERSION = '4.9.20';
 let db = null;
 
 const STORES = {

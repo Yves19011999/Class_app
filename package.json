@@ -1,6 +1,6 @@
 {
   "name": "classe-gestion-classe",
-  "version": "4.9.19",
+  "version": "4.9.20",
   "private": true,
   "description": "Classe — gestion de classe offline-first, PWA et Android.",
   "scripts": {

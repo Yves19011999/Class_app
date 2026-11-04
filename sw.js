@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classe-cache-v4-9-19-neon-aurora-sound';
+const CACHE_NAME = 'classe-cache-v4-9-20-aurora-command-center-v2';
 const CORE_ASSETS = ['./','./index.html','./app.js','./class-senior-redesign.css','./native-notifications.js','./schedule-pdf.js','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
